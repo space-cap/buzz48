@@ -153,7 +153,7 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 					onClick={() => setMobileTab('chat')} 
 					style={{ ...styles.mobileTabBtn, borderBottom: mobileTab === 'chat' ? '3px solid var(--primary)' : 'none' }}
 				>
-					💬 실시간 톡 (👀 {connCount}명)
+					💬 실시간 댓글 (👀 {connCount}명)
 				</button>
 			</div>
 
@@ -225,7 +225,7 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 				}}>
 					{/* 채팅 상단 메타 바 */}
 					<div style={styles.chatHeader}>
-						<span style={styles.chatTitle}>💬 실시간 톡 채널</span>
+						<span style={styles.chatTitle}>💬 실시간 댓글</span>
 						<div style={styles.chatMetaZone}>
 							<span style={styles.activeUsers}>👀 {connCount}명 참여 중</span>
 							<span style={{ 
@@ -242,7 +242,7 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 					<div style={styles.chatTimeline}>
 						{messages.length === 0 ? (
 							<div style={styles.emptyChat}>
-								아직 메시지가 없습니다. 첫 한마디를 입력해 보세요!
+								아직 작성된 댓글이 없습니다. 첫 댓글을 남겨보세요!
 							</div>
 						) : (
 							messages.map((msg) => (
@@ -293,27 +293,27 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 					{/* 답글 대상 캔슬 배너 */}
 					{replyTarget && (
 						<div style={styles.replyBanner}>
-							<span>↩️ <b>{replyTarget.sender_nickname}</b> 님에게 답장 작성 중...</span>
+							<span>↩️ <b>{replyTarget.sender_nickname}</b> 님에게 답글 작성 중...</span>
 							<button onClick={() => setReplyTarget(null)} style={styles.replyCancelBtn}>&times;</button>
 						</div>
 					)}
 
-					{/* 메시지 입력 영역 */}
+					{/* 댓글 입력 영역 */}
 					{postState === 'LIVE' ? (
 						<form onSubmit={handleSendMessageSubmit} style={styles.chatForm}>
 							<input
 								type="text"
 								value={inputMsg}
 								onChange={e => setInputMsg(e.target.value)}
-								placeholder="메시지를 입력하세요..."
+								placeholder="댓글을 입력하세요..."
 								style={styles.chatInput}
 								maxLength={500}
 							/>
-							<button type="submit" style={styles.sendBtn}>전송</button>
+							<button type="submit" style={styles.sendBtn}>등록</button>
 						</form>
 					) : (
 						<div style={styles.lockedBanner}>
-							🔒 이 게시물은 24시간이 경과하여 읽기 전용(READ) 모드입니다. 채팅 작성이 비활성화되었습니다.
+							🔒 이 게시물은 24시간이 경과하여 읽기 전용(READ) 모드입니다. 댓글 작성이 비활성화되었습니다.
 						</div>
 					)}
 				</div>
