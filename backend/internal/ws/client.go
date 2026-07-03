@@ -191,7 +191,13 @@ func (c *Client) sendSnapshot(createdAt time.Time) {
 			replyTo = &parsed
 		}
 
-		msgID, _ := uuid.Parse(xm.ID) // Stream ID 파싱
+		// message_id 필드 우선 사용, 없으면 uuid.New()로 임시 발급 (오래된 스트림 메시지 대응)
+		var msgID uuid.UUID
+		if idStr, ok := xm.Values["message_id"].(string); ok && idStr != "" {
+			msgID, _ = uuid.Parse(idStr)
+		} else {
+			msgID = uuid.New()
+		}
 		createdUnix, _ := strconv.ParseInt(xm.Values["created_at"].(string), 10, 64)
 
 		recentMessages = append(recentMessages, model.Message{
@@ -366,8 +372,9 @@ func (c *Client) handleSendMessage(payload json.RawMessage) {
 	now := time.Now().UTC()
 	nowUnix := now.UnixMilli()
 
-	// 3. Redis Stream에 적재
+	// 3. Redis Stream에 적재 (message_id 명시 저장 → 스냅샷 복원 시 UUID 식별 용도)
 	fields := map[string]interface{}{
+		"message_id":      msgID.String(),
 		"sender_nickname": c.Nickname,
 		"content":         req.Content,
 		"created_at":      strconv.FormatInt(nowUnix, 10),
