@@ -92,9 +92,19 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 		initialState: post?.state || 'LIVE'
 	});
 
-	// 채팅 스크롤 자동 고정
+	// 최초 메시지 로드 시 즉시 최하단으로 이동 (스냅)
+	const prevLengthRef = useRef(0);
 	useEffect(() => {
-		chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+		if (messages.length === 0) return;
+
+		if (prevLengthRef.current === 0) {
+			// 초기 복원 시 → 즉시 최하단 스크롤 (smooth 없이)
+			chatEndRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+		} else {
+			// 신규 메시지 수신 시 → 부드럽게 스크롤
+			chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+		}
+		prevLengthRef.current = messages.length;
 	}, [messages]);
 
 	// 메시지 전송 핸들러
