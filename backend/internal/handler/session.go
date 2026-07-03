@@ -85,6 +85,25 @@ func (d *Deps) CreateSession(c *fiber.Ctx) error {
 	})
 }
 
+// GetMySession은 현재 요청자의 세션 정보를 조회하여 반환합니다.
+func (d *Deps) GetMySession(c *fiber.Ctx) error {
+	ctx := c.Context()
+	sessionID, err := sessionFromCookie(c)
+	if err != nil {
+		return errJSON(c, fiber.StatusUnauthorized, "SESSION_EXPIRED", "세션이 없거나 만료되었습니다.")
+	}
+
+	nickname, err := d.getSessionNickname(ctx, sessionID)
+	if err != nil {
+		return errJSON(c, fiber.StatusNotFound, "SESSION_EXPIRED", "세션을 찾을 수 없습니다.")
+	}
+
+	return c.JSON(fiber.Map{
+		"session_id": sessionID,
+		"nickname":   nickname,
+	})
+}
+
 // ────────────────────────────────────────────────────────
 // PATCH /sessions/me/nickname — 닉네임 변경
 // API 명세서 §2.1, PRD §1.2 SES-03

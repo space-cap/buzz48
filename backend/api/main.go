@@ -77,7 +77,7 @@ func main() {
 		Format: "${time} | ${status} | ${latency} | ${method} ${path}\n",
 	}))
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000",
+		AllowOrigins:     "http://localhost:3000, http://localhost:3001, http://127.0.0.1:3000, http://127.0.0.1:3001",
 		AllowHeaders:     "Origin, Content-Type, Authorization",
 		AllowCredentials: true, // 쿠키 허용
 	}))
@@ -118,6 +118,7 @@ func registerRoutes(app *fiber.App, h *handler.Deps) {
 
 	// ── 세션 API (PRD §1, API 명세서 §2.1) ───────────────
 	v1.Post("/sessions", h.CreateSession)
+	v1.Get("/sessions/me", h.GetMySession)
 	v1.Patch("/sessions/me/nickname", h.PatchNickname)
 
 	// ── 게시물 API (PRD §2, §4, §5, API 명세서 §2.2) ─────
