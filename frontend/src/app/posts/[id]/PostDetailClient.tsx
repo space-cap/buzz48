@@ -401,6 +401,7 @@ const styles = {
 		display: 'flex',
 		justifyContent: 'space-between',
 		alignItems: 'center',
+		paddingRight: '36px', // 접기 버튼과 겹침 방지 여백 확보
 	},
 	categoryBadge: {
 		background: 'rgba(79, 70, 229, 0.1)',
