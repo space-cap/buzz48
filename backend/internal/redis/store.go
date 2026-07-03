@@ -15,15 +15,31 @@ import (
 //               disconnect_pending 키 TTL 60초 방식으로 어뷰징 방어
 // ──────────────────────────────────────────────────────────────
 
-// ConnIncr — WebSocket 연결 시 동접자 수 +1, disconnect_pending 키 제거
+// ConnIncr — WebSocket 연결 시 동접자 수 처리.
+//   - disconnect_pending 키가 있으면(재연결): 키만 삭제하고 INCR 생략 (이미 카운트됨)
+//   - disconnect_pending 키가 없으면(신규 연결): INCR +1
+//
+// Lua 스크립트로 원자적으로 처리하여 레이스 컨디션 방지.
+var connIncrScript = redis.NewScript(`
+local pending = redis.call('DEL', KEYS[1])
+if pending == 0 then
+    return redis.call('INCR', KEYS[2])
+else
+    local v = redis.call('GET', KEYS[2])
+    if v then return tonumber(v) else return 0 end
+end
+`)
+
 func ConnIncr(ctx context.Context, rdb *redis.Client, sessionID, postID string) (int64, error) {
-	pipe := rdb.Pipeline()
-	pipe.Del(ctx, KeyDisconnectPending(sessionID, postID))
-	incrCmd := pipe.Incr(ctx, KeyPostConnCount(postID))
-	if _, err := pipe.Exec(ctx); err != nil {
+	keys := []string{
+		KeyDisconnectPending(sessionID, postID),
+		KeyPostConnCount(postID),
+	}
+	res, err := connIncrScript.Run(ctx, rdb, keys).Int64()
+	if err != nil {
 		return 0, err
 	}
-	return incrCmd.Val(), nil
+	return res, nil
 }
 
 // ConnDecr — WebSocket 연결 해제 시 disconnect_pending 키 설정(TTL 60초).
