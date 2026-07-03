@@ -47,6 +47,10 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 
 	const connect = useCallback(() => {
 		if (postStateRef.current === 'READ') return; // 만료 글은 소켓 연결 불필요
+		if (!sessionID) {
+			console.log('🔌 [WebSocket] 세션 ID가 아직 준비되지 않아 연결을 보류합니다.');
+			return;
+		}
 
 		const wsUrl = `ws://localhost:8083/v1/ws/posts/${postID}?token=${sessionID}`;
 		const socket = new WebSocket(wsUrl);

@@ -34,7 +34,23 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 	const [replyTarget, setReplyTarget] = useState<Message | null>(null);
 
 	const chatEndRef = useRef<HTMLDivElement | null>(null);
-	const sessionID = typeof window !== 'undefined' ? localStorage.getItem('session_id') || '' : '';
+	const [sessionID, setSessionID] = useState('');
+
+	// 0.5 세션 ID 동적 감시 및 마운트 로드
+	useEffect(() => {
+		setSessionID(localStorage.getItem('session_id') || '');
+
+		const handleSessionSync = () => {
+			setSessionID(localStorage.getItem('session_id') || '');
+		};
+		window.addEventListener('storage', handleSessionSync);
+		window.addEventListener('nicknameChanged', handleSessionSync);
+
+		return () => {
+			window.removeEventListener('storage', handleSessionSync);
+			window.removeEventListener('nicknameChanged', handleSessionSync);
+		};
+	}, []);
 
 	// 1. 게시글 데이터 API 로드 (최초 마운트)
 	useEffect(() => {
