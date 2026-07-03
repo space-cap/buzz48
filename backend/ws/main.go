@@ -52,7 +52,7 @@ func main() {
 	// HTTP 라우터
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", healthHandler)
-	mux.HandleFunc("/v1/ws/rooms/", wsHandler)
+	mux.HandleFunc("/v1/ws/posts/", wsHandler)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.WSPort,
