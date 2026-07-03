@@ -33,10 +33,13 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 	const lastMessageIdRef = useRef<string | null>(null);
 	const postStateRef = useRef<'LIVE' | 'READ'>(initialState);
 
+	const connectRef = useRef<() => void>(() => {});
+
 	// 최신 postState 참조 보존
 	useEffect(() => {
 		postStateRef.current = postState;
 	}, [postState]);
+
 
 	// 메시지 배열 갱신 시 마지막 메시지 ID 참조 보존 (싱크 동기화의 기준점)
 	useEffect(() => {
@@ -136,7 +139,7 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 				reconnectCount.current += 1;
 				console.warn(`🔌 [WebSocket] ${delay/1000}초 후 자동 재접속을 시도합니다. (시도: ${reconnectCount.current}/5)`);
 				setTimeout(() => {
-					connect();
+					connectRef.current();
 				}, delay);
 			}
 		};
@@ -146,6 +149,11 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 			socket.close();
 		};
 	}, [postID, sessionID]);
+
+	// 최신 connect 참조 보존
+	useEffect(() => {
+		connectRef.current = connect;
+	}, [connect]);
 
 	useEffect(() => {
 		connect();
@@ -170,7 +178,7 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 		}
 
 		ws.current.send(JSON.stringify(payload));
-	}, [postState]);
+	}, [postState, sessionID]);
 
 	// 반응 이모지 토글 트리거
 	const sendReaction = useCallback((emoji: string) => {
@@ -180,7 +188,7 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 			type: 'toggle_reaction',
 			payload: { emoji }
 		}));
-	}, [postState]);
+	}, [postState, sessionID]);
 
 	return {
 		messages,
