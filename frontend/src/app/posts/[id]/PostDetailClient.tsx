@@ -97,12 +97,21 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 	useEffect(() => {
 		if (messages.length === 0) return;
 
+		const scrollToBottom = (behavior: ScrollBehavior) => {
+			// rAF 2중 래핑 — React 렌더 → 브라우저 페인트 완료 후 스크롤 실행 보장
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					chatEndRef.current?.scrollIntoView({ behavior });
+				});
+			});
+		};
+
 		if (prevLengthRef.current === 0) {
-			// 초기 복원 시 → 즉시 최하단 스크롤 (smooth 없이)
-			chatEndRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior });
+			// 초기 복원 시 → 즉시 최하단 스크롤
+			scrollToBottom('instant' as ScrollBehavior);
 		} else {
 			// 신규 메시지 수신 시 → 부드럽게 스크롤
-			chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+			scrollToBottom('smooth');
 		}
 		prevLengthRef.current = messages.length;
 	}, [messages]);
