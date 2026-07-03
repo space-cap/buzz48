@@ -89,15 +89,21 @@ func registerRoutes(app *fiber.App) {
 		return c.JSON(fiber.Map{"status": "ok", "service": "buzz48-api"})
 	})
 
-	// Phase 1에서 구현 예정
-	v1.Get("/sessions", placeholder("sessions"))
-	v1.Post("/sessions", placeholder("sessions"))
-	v1.Get("/rooms", placeholder("rooms"))
-	v1.Post("/rooms", placeholder("rooms"))
-	v1.Get("/rooms/hot", placeholder("rooms/hot"))
-	v1.Get("/rooms/:room_id", placeholder("rooms/:room_id"))
-	v1.Get("/rooms/:room_id/messages", placeholder("rooms/:room_id/messages"))
+	// 세션 API
+	v1.Post("/sessions", placeholder("POST /sessions"))
+	v1.Patch("/sessions/me/nickname", placeholder("PATCH /sessions/me/nickname"))
+
+	// 게시물 API — Phase 1에서 구현 예정
+	v1.Get("/posts", placeholder("GET /posts"))
+	v1.Post("/posts", placeholder("POST /posts"))
+	v1.Get("/posts/hot", placeholder("GET /posts/hot"))
+	v1.Get("/posts/:post_id", placeholder("GET /posts/:post_id"))
+	v1.Get("/posts/:post_id/messages", placeholder("GET /posts/:post_id/messages"))
+
+	// 신고 API — Phase 2에서 구현 예정
+	v1.Post("/reports", placeholder("POST /reports"))
 }
+
 
 func placeholder(name string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
