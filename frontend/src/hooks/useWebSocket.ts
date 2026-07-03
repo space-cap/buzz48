@@ -35,6 +35,7 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 	const postStateRef = useRef<'LIVE' | 'READ'>(initialState);
 
 	const connectRef = useRef<() => void>(() => {});
+	const isClosedIntentionallyRef = useRef(false);
 
 	// 최신 postState 참조 보존
 	useEffect(() => {
@@ -59,6 +60,7 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 		const wsUrl = `ws://localhost:8083/v1/ws/posts/${postID}?token=${sessionID}`;
 		const socket = new WebSocket(wsUrl);
 		ws.current = socket;
+		isClosedIntentionallyRef.current = false; // 신규 연결 수립 시 플래그 리셋
 
 		socket.onopen = () => {
 			console.log('🔌 [WebSocket] 연결 성공:', postID);
@@ -146,6 +148,12 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 		socket.onclose = () => {
 			console.log('🔌 [WebSocket] 연결 종료');
 			
+			// 언마운트 등 의도적으로 소켓을 닫은 경우 재연결을 원천 봉쇄 (고스트 커넥션 방지)
+			if (isClosedIntentionallyRef.current) {
+				console.log('🔌 [WebSocket] 의도된 연결 종료이므로 재접속을 시도하지 않습니다.');
+				return;
+			}
+
 			// 24시간 LIVE 수명이 살아있는 상태에서 의도치 않게 닫힌 경우, 최대 5번 자동 재접속 시도
 			if (postStateRef.current === 'LIVE' && reconnectCount.current < 5) {
 				const delay = Math.min(1000 * Math.pow(2, reconnectCount.current), 10000); // 지수 백오프
@@ -172,6 +180,7 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 		connect();
 		return () => {
 			if (ws.current) {
+				isClosedIntentionallyRef.current = true; // 언마운트 시 명시적 종료 플래그 활성화
 				ws.current.close();
 			}
 		};

@@ -74,7 +74,7 @@ func main() {
 	for {
 		var batch []string
 		var scanErr2 error
-		batch, cursor, scanErr2 = rdb.Scan(ctx, cursor, "session:*:disconnect_pending:*", 100).Result()
+		batch, cursor, scanErr2 = rdb.Scan(ctx, cursor, "disconnect_pending:*:*", 100).Result()
 		if scanErr2 != nil {
 			break
 		}
