@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getPostDetailAPI } from '../../../lib/api';
 import TimerText from '../../../components/TimerText';
 import { useWebSocket } from '../../../hooks/useWebSocket';
@@ -165,6 +166,9 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 					)}
 
 					<div style={styles.leftContent}>
+						<Link href="/" style={styles.backLink}>
+							← 목록으로 돌아가기
+						</Link>
 						<div style={styles.postMeta}>
 							<span style={styles.categoryBadge}>{post.category}</span>
 							<TimerText initialSeconds={post.remaining_seconds} state={postState} />
@@ -391,6 +395,17 @@ const styles = {
 		fontSize: '1rem',
 		fontWeight: 700,
 		transition: 'background 0.2s',
+	},
+	backLink: {
+		display: 'inline-flex',
+		alignItems: 'center',
+		fontSize: '0.85rem',
+		fontWeight: 700,
+		color: 'var(--primary)',
+		cursor: 'pointer',
+		textDecoration: 'none',
+		transition: 'opacity 0.2s',
+		alignSelf: 'flex-start',
 	},
 	leftContent: {
 		display: 'flex',
