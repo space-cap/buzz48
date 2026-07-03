@@ -96,11 +96,13 @@ export async function getPostsAPI(params: {
 	category?: string;
 	cursor?: string;
 	limit?: number;
+	search?: string;
 }): Promise<{ posts: PostItem[]; next_cursor: string | null }> {
 	const query = new URLSearchParams();
 	if (params.category) query.append("category", params.category);
 	if (params.cursor) query.append("cursor", params.cursor);
 	if (params.limit) query.append("limit", params.limit.toString());
+	if (params.search) query.append("search", params.search);
 
 	const res = await fetch(`${API_BASE}/posts?${query.toString()}`);
 	if (!res.ok) {

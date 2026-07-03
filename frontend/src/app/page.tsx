@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { getPostsAPI, getHotPostsAPI, PostItem, HotPostItem } from '../lib/api';
 import TimerText from '../components/TimerText';
@@ -15,15 +15,27 @@ export default function Home() {
 	const [loading, setLoading] = useState(false);
 	const [isWriteModalOpen, setIsWriteModalOpen] = useState(false);
 
+	// 검색 상태 관리
+	const [searchKeyword, setSearchKeyword] = useState('');
+	const [searchQuery, setSearchQuery] = useState('');
+
+	// 무한 스크롤 감지용 Ref
+	const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
+
 	// 카테고리 정의
 	const categories = ['전체', '자유', '경제·주식', '스포츠', '연예·문화'];
 
 	// 1. 최신 게시글 목록 조회
-	const fetchPosts = useCallback(async (category: string, append = false, cursor = '') => {
+	const fetchPosts = useCallback(async (category: string, append = false, cursor = '', searchVal = '') => {
 		setLoading(true);
 		try {
 			const catParam = category === '전체' ? undefined : category;
-			const data = await getPostsAPI({ category: catParam, cursor, limit: 15 });
+			const data = await getPostsAPI({ 
+				category: catParam, 
+				cursor, 
+				search: searchVal || undefined,
+				limit: 15 
+			});
 			
 			if (append) {
 				setPosts(prev => [...prev, ...data.posts]);
@@ -48,19 +60,19 @@ export default function Home() {
 		}
 	}, []);
 
-	// 초기 마운트 및 카테고리 전환 시 실행
+	// 초기 마운트, 카테고리 전환, 검색 실행 시 실행
 	useEffect(() => {
-		fetchPosts(activeCategory, false, '');
+		fetchPosts(activeCategory, false, '', searchQuery);
 		fetchHotPosts();
 
-		// HOT 3 게시글은 10초 주기로 실시간 폴링 갱신 (워커 계산 주기와 동기화)
+		// HOT 3 게시글은 10초 주기로 실시간 폴링 갱신
 		const hotTimer = setInterval(() => {
 			fetchHotPosts();
 		}, 10*1000);
 
 		// 닉네임 변경 시 세션 연동 확인용
 		const handleNickChange = () => {
-			fetchPosts(activeCategory, false, '');
+			fetchPosts(activeCategory, false, '', searchQuery);
 		};
 		window.addEventListener('nicknameChanged', handleNickChange);
 
@@ -68,18 +80,60 @@ export default function Home() {
 			clearInterval(hotTimer);
 			window.removeEventListener('nicknameChanged', handleNickChange);
 		};
-	}, [activeCategory, fetchPosts, fetchHotPosts]);
+	}, [activeCategory, searchQuery, fetchPosts, fetchHotPosts]);
 
 	// 더보기 페이징 처리
-	const handleLoadMore = () => {
+	const handleLoadMore = useCallback(() => {
 		if (nextCursor && !loading) {
-			fetchPosts(activeCategory, true, nextCursor);
+			fetchPosts(activeCategory, true, nextCursor, searchQuery);
 		}
+	}, [nextCursor, loading, activeCategory, searchQuery, fetchPosts]);
+
+	// 자동 무한 스크롤 옵저버 설정
+	useEffect(() => {
+		if (!nextCursor || loading) return;
+
+		const observer = new IntersectionObserver((entries) => {
+			if (entries[0].isIntersecting) {
+				handleLoadMore();
+			}
+		}, {
+			threshold: 0.1,
+		});
+
+		const currentTrigger = loadMoreTriggerRef.current;
+		if (currentTrigger) {
+			observer.observe(currentTrigger);
+		}
+
+		return () => {
+			if (currentTrigger) {
+				observer.unobserve(currentTrigger);
+			}
+		};
+	}, [nextCursor, loading, handleLoadMore]);
+
+	// 검색 핸들러
+	const handleSearchSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		setSearchQuery(searchKeyword.trim());
+	};
+
+	const handleSearchReset = () => {
+		setSearchKeyword('');
+		setSearchQuery('');
+	};
+
+	// 카테고리 변경 핸들러 (검색 상태 리셋 추가)
+	const handleCategoryChange = (cat: string) => {
+		setSearchKeyword('');
+		setSearchQuery('');
+		setActiveCategory(cat);
 	};
 
 	// 게시글 작성 성공 시 리프레시
 	const handlePostSuccess = () => {
-		fetchPosts(activeCategory, false, '');
+		fetchPosts(activeCategory, false, '', searchQuery);
 		fetchHotPosts();
 	};
 
@@ -133,7 +187,7 @@ export default function Home() {
 						{categories.map(cat => (
 							<button
 								key={cat}
-								onClick={() => setActiveCategory(cat)}
+								onClick={() => handleCategoryChange(cat)}
 								style={{
 									...styles.tabBtn,
 									color: activeCategory === cat ? 'white' : 'var(--text-muted)',
@@ -145,6 +199,24 @@ export default function Home() {
 							</button>
 						))}
 					</div>
+
+					{/* 실시간 검색창 폼 */}
+					<form onSubmit={handleSearchSubmit} style={styles.searchForm}>
+						<span style={styles.searchIcon}>🔍</span>
+						<input
+							type="text"
+							value={searchKeyword}
+							onChange={(e) => setSearchKeyword(e.target.value)}
+							placeholder="제목, 내용 키워드 검색..."
+							style={styles.searchInput}
+						/>
+						{searchKeyword && (
+							<button type="button" onClick={handleSearchReset} style={styles.searchResetBtn}>
+								&times;
+							</button>
+						)}
+						<button type="submit" style={styles.searchSubmitBtn}>검색</button>
+					</form>
 
 					<button 
 						onClick={() => setIsWriteModalOpen(true)}
@@ -207,16 +279,10 @@ export default function Home() {
 					</div>
 				)}
 
-				{/* 4. 더보기 페이징 페이더 */}
+				{/* 4. 무한 스크롤 트리거 영역 */}
 				{nextCursor && (
-					<div style={styles.loadMoreZone}>
-						<button 
-							onClick={handleLoadMore} 
-							style={styles.loadMoreBtn}
-							disabled={loading}
-						>
-							{loading ? '더 가져오는 중...' : '더보기 🔽'}
-						</button>
+					<div ref={loadMoreTriggerRef} style={styles.loadMoreZone}>
+						{loading && <span style={styles.loadMoreText}>🔄 다음 글을 가져오는 중...</span>}
 					</div>
 				)}
 			</section>
@@ -533,17 +599,78 @@ const styles = {
 		display: 'flex',
 		justifyContent: 'center',
 		marginTop: '24px',
+		paddingBottom: '20px',
 	},
-	loadMoreBtn: {
+	loadMoreText: {
+		fontSize: '0.85rem',
+		color: 'var(--text-muted)',
+		padding: '8px 16px',
+		background: 'rgba(0, 0, 0, 0.02)',
+		borderRadius: '20px',
+		display: 'inline-flex',
+		alignItems: 'center',
+		gap: '8px',
+	},
+	searchForm: {
+		display: 'flex',
+		alignItems: 'center',
 		background: 'var(--panel-bg)',
 		border: '1px solid var(--border-color)',
-		borderRadius: '8px',
-		color: 'var(--text-main)',
-		padding: '10px 24px',
+		borderRadius: '20px',
+		padding: '6px 14px',
+		flex: 1,
+		maxWidth: '320px',
+		boxShadow: 'var(--shadow-sm)',
+		transition: 'border-color 0.2s',
+		'&:focus-within': {
+			borderColor: 'var(--primary)',
+		}
+	},
+	searchIcon: {
 		fontSize: '0.9rem',
-		fontWeight: 600,
+		marginRight: '6px',
+		color: 'var(--text-muted)',
+		userSelect: 'none' as const,
+	},
+	searchInput: {
+		border: 'none',
+		outline: 'none',
+		background: 'transparent',
+		color: 'var(--text-main)',
+		fontSize: '0.85rem',
+		width: '100%',
+		padding: '0',
+	},
+	searchResetBtn: {
+		border: 'none',
+		outline: 'none',
+		background: 'transparent',
+		color: 'var(--text-muted)',
+		fontSize: '1.1rem',
 		cursor: 'pointer',
-		transition: 'background 0.2s',
+		padding: '0 6px',
+		display: 'flex',
+		alignItems: 'center',
+		'&:hover': {
+			color: 'var(--text-main)',
+		}
+	},
+	searchSubmitBtn: {
+		border: 'none',
+		outline: 'none',
+		background: 'var(--primary)',
+		color: 'white',
+		borderRadius: '14px',
+		padding: '4px 10px',
+		fontSize: '0.75rem',
+		fontWeight: 700,
+		cursor: 'pointer',
+		whiteSpace: 'nowrap' as const,
+		marginLeft: '4px',
+		transition: 'opacity 0.2s',
+		'&:hover': {
+			opacity: 0.9,
+		}
 	},
 	fabBtn: {
 		position: 'fixed' as const,

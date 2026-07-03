@@ -105,6 +105,7 @@ func (d *Deps) ListPosts(c *fiber.Ctx) error {
 	category := c.Query("category", "")
 	sort := c.Query("sort", "latest")
 	cursor := c.Query("cursor", "")
+	search := c.Query("search", "")
 	limit := c.QueryInt("limit", 20)
 	if limit > 50 {
 		limit = 50
@@ -113,11 +114,11 @@ func (d *Deps) ListPosts(c *fiber.Ctx) error {
 	if sort == "hot" {
 		return d.listPostsHot(c, limit)
 	}
-	return d.listPostsLatest(ctx, c, category, cursor, limit)
+	return d.listPostsLatest(ctx, c, category, cursor, search, limit)
 }
 
 // listPostsLatest — 최신순 게시물 목록
-func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, cursor string, limit int) error {
+func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, cursor, search string, limit int) error {
 	// 커서: created_at (ISO8601) 기반
 	var cursorTime time.Time
 	if cursor != "" {
@@ -136,23 +137,47 @@ func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, curs
 	var rows pgx.Rows
 	var err error
 	if category != "" {
-		rows, err = d.DB.Query(ctx,
-			`SELECT id, title, category, created_at, is_premium
-			 FROM posts
-			 WHERE category=$1 AND created_at > $2 AND created_at < $3
-			 ORDER BY created_at DESC
-			 LIMIT $4`,
-			category, cutoff, cursorTime, limit+1,
-		)
+		if search != "" {
+			rows, err = d.DB.Query(ctx,
+				`SELECT id, title, category, created_at, is_premium
+				 FROM posts
+				 WHERE category=$1 AND created_at > $2 AND created_at < $3
+				   AND (title ILIKE $4 OR content ILIKE $4)
+				 ORDER BY created_at DESC
+				 LIMIT $5`,
+				category, cutoff, cursorTime, "%"+search+"%", limit+1,
+			)
+		} else {
+			rows, err = d.DB.Query(ctx,
+				`SELECT id, title, category, created_at, is_premium
+				 FROM posts
+				 WHERE category=$1 AND created_at > $2 AND created_at < $3
+				 ORDER BY created_at DESC
+				 LIMIT $4`,
+				category, cutoff, cursorTime, limit+1,
+			)
+		}
 	} else {
-		rows, err = d.DB.Query(ctx,
-			`SELECT id, title, category, created_at, is_premium
-			 FROM posts
-			 WHERE created_at > $1 AND created_at < $2
-			 ORDER BY created_at DESC
-			 LIMIT $3`,
-			cutoff, cursorTime, limit+1,
-		)
+		if search != "" {
+			rows, err = d.DB.Query(ctx,
+				`SELECT id, title, category, created_at, is_premium
+				 FROM posts
+				 WHERE created_at > $1 AND created_at < $2
+				   AND (title ILIKE $3 OR content ILIKE $3)
+				 ORDER BY created_at DESC
+				 LIMIT $4`,
+				cutoff, cursorTime, "%"+search+"%", limit+1,
+			)
+		} else {
+			rows, err = d.DB.Query(ctx,
+				`SELECT id, title, category, created_at, is_premium
+				 FROM posts
+				 WHERE created_at > $1 AND created_at < $2
+				 ORDER BY created_at DESC
+				 LIMIT $3`,
+				cutoff, cursorTime, limit+1,
+			)
+		}
 	}
 	if err != nil {
 		return errJSON(c, fiber.StatusInternalServerError, "DB_ERROR", err.Error())
