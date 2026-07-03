@@ -85,9 +85,9 @@ func StreamAdd(ctx context.Context, rdb *redis.Client, postID string, fields map
 // StreamRange — 특정 구간 메시지 조회 (재연결 sync 시 사용).
 // lastID: 마지막으로 수신한 메시지 ID (exclusive). 빈 문자열이면 전체 조회.
 func StreamRange(ctx context.Context, rdb *redis.Client, postID, lastID string, count int64) ([]redis.XMessage, error) {
-	start := "+"   // 오래된 것부터
+	start := "-"   // 가장 오래된 것까지 범위 확장
 	if lastID != "" {
-		start = "(" + lastID // exclusive — lastID 이후부터
+		start = "(" + lastID // exclusive — lastID의 직전(더 최신)까지 역순 스캔
 	}
 	return rdb.XRevRangeN(ctx, KeyPostMessages(postID), "+", start, count).Result()
 }
