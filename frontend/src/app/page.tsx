@@ -165,39 +165,45 @@ export default function Home() {
 					<div style={styles.feedList}>
 						{/* 리스트 헤더 */}
 						<div style={styles.listHeader}>
-							<span style={styles.listHeaderCell}>분류</span>
-							<span style={{...styles.listHeaderCell, flex: 1}}>제목</span>
-							<span style={styles.listHeaderCell}>참여</span>
-							<span style={styles.listHeaderCell}>남은 시간</span>
+							<span style={styles.headerCategory}>분류</span>
+							<span style={styles.headerTitle}>제목</span>
+							<span style={styles.headerConn}>참여</span>
+							<span style={styles.headerTimer}>남은 시간</span>
 						</div>
 						{/* 리스트 로우 */}
-						{posts.map(post => (
-							<Link href={`/posts/${post.post_id}`} key={post.post_id} style={styles.cardLink}>
-								<div style={styles.listRow}>
-									{/* 분류 */}
-									<span style={styles.rowCategory}>{post.category}</span>
+						{posts.map((post, idx) => {
+							const isLast = idx === posts.length - 1;
+							return (
+								<Link href={`/posts/${post.post_id}`} key={post.post_id} style={styles.cardLink}>
+									<div style={{
+										...styles.listRow,
+										borderBottom: isLast ? 'none' : '1px solid var(--border-color)'
+									}}>
+										{/* 분류 */}
+										<span style={styles.rowCategory}>{post.category}</span>
 
-									{/* 제목 + NEW 뱃지 */}
-									<span style={styles.rowTitle}>
-										{post.title}
-										{post.is_new && <span style={styles.newBadge}>N</span>}
-									</span>
+										{/* 제목 + NEW 뱃지 */}
+										<span style={styles.rowTitle}>
+											{post.title}
+											{post.is_new && <span style={styles.newBadge}>N</span>}
+										</span>
 
-									{/* 참여자 수 */}
-									<span style={styles.rowConn}>
-										👀 {post.conn_count}
-									</span>
+										{/* 참여자 수 */}
+										<span style={styles.rowConn}>
+											👀 {post.conn_count}
+										</span>
 
-									{/* 남은 시간 타이머 */}
-									<span style={styles.rowTimer}>
-										<TimerText
-											initialSeconds={post.remaining_seconds}
-											state={post.state}
-										/>
-									</span>
-								</div>
-							</Link>
-						))}
+										{/* 남은 시간 타이머 */}
+										<span style={styles.rowTimer}>
+											<TimerText
+												initialSeconds={post.remaining_seconds}
+												state={post.state}
+											/>
+										</span>
+									</div>
+								</Link>
+							);
+						})}
 					</div>
 				)}
 
@@ -404,7 +410,7 @@ const styles = {
 		paddingRight: '20px',
 		background: 'rgba(79, 70, 229, 0.04)',
 		borderBottom: '1px solid var(--border-color)',
-		gap: '12px',
+		gap: '16px',
 	},
 	listHeaderCell: {
 		fontSize: '0.72rem',
@@ -414,6 +420,46 @@ const styles = {
 		letterSpacing: '0.5px',
 		whiteSpace: 'nowrap' as const,
 	},
+	headerCategory: {
+		fontSize: '0.72rem',
+		fontWeight: 700,
+		color: 'var(--text-muted)',
+		textTransform: 'uppercase' as const,
+		letterSpacing: '0.5px',
+		whiteSpace: 'nowrap' as const,
+		width: '80px',
+		textAlign: 'center' as const,
+	},
+	headerTitle: {
+		fontSize: '0.72rem',
+		fontWeight: 700,
+		color: 'var(--text-muted)',
+		textTransform: 'uppercase' as const,
+		letterSpacing: '0.5px',
+		whiteSpace: 'nowrap' as const,
+		flex: 1,
+		textAlign: 'left' as const,
+	},
+	headerConn: {
+		fontSize: '0.72rem',
+		fontWeight: 700,
+		color: 'var(--text-muted)',
+		textTransform: 'uppercase' as const,
+		letterSpacing: '0.5px',
+		whiteSpace: 'nowrap' as const,
+		width: '70px',
+		textAlign: 'right' as const,
+	},
+	headerTimer: {
+		fontSize: '0.72rem',
+		fontWeight: 700,
+		color: 'var(--text-muted)',
+		textTransform: 'uppercase' as const,
+		letterSpacing: '0.5px',
+		whiteSpace: 'nowrap' as const,
+		width: '140px',
+		textAlign: 'right' as const,
+	},
 	// 개별 리스트 로우
 	listRow: {
 		display: 'flex',
@@ -422,8 +468,7 @@ const styles = {
 		paddingBottom: '13px',
 		paddingLeft: '20px',
 		paddingRight: '20px',
-		gap: '12px',
-		borderBottom: '1px solid var(--border-color)',
+		gap: '16px',
 		transition: 'background 0.15s',
 		cursor: 'pointer',
 		'&:hover': {
@@ -432,13 +477,13 @@ const styles = {
 	},
 	rowCategory: {
 		flexShrink: 0,
-		width: '72px',
+		width: '80px',
 		fontSize: '0.75rem',
 		fontWeight: 700,
 		color: 'white',
 		background: 'var(--primary)',
 		borderRadius: '6px',
-		padding: '2px 8px',
+		padding: '3px 8px',
 		textAlign: 'center' as const,
 		whiteSpace: 'nowrap' as const,
 		overflow: 'hidden',
@@ -458,7 +503,7 @@ const styles = {
 	},
 	rowConn: {
 		flexShrink: 0,
-		width: '56px',
+		width: '70px',
 		textAlign: 'right' as const,
 		fontSize: '0.8rem',
 		fontWeight: 600,
@@ -467,11 +512,12 @@ const styles = {
 	},
 	rowTimer: {
 		flexShrink: 0,
-		width: '88px',
+		width: '140px',
 		textAlign: 'right' as const,
 		fontSize: '0.82rem',
 		fontFamily: "'Outfit', monospace",
 		fontWeight: 700,
+		whiteSpace: 'nowrap' as const,
 	},
 	newBadge: {
 		background: 'rgba(79, 70, 229, 0.12)',
