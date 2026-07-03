@@ -59,7 +59,8 @@ CREATE TABLE IF NOT EXISTS posts (
     image_urls          TEXT[],
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(), -- LIFE-02 판정 기준 시각
     is_premium          BOOLEAN NOT NULL DEFAULT FALSE,
-    archived_to_pg_at   TIMESTAMPTZ                        -- LIVE→READ 전환 시 Redis→PG 이관 완료 시각
+    archived_to_pg_at   TIMESTAMPTZ,                       -- LIVE→READ 전환 시 Redis→PG 이관 완료 시각
+    idempotency_key     VARCHAR(100) UNIQUE
 );
 CREATE INDEX IF NOT EXISTS idx_posts_category_created ON posts(category, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_created_at       ON posts(created_at); -- Lifecycle/Purge Worker 스캔용

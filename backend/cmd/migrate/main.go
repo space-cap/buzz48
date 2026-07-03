@@ -10,10 +10,16 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"buzz48/backend/internal/config"
 )
 
 func main() {
-	dsn := buildDSN()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("❌ 설정 로드 실패: %v", err)
+	}
+	dsn := cfg.DBDSN()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -74,25 +80,4 @@ func main() {
 		rows.Scan(&name)
 		fmt.Printf("   - %s\n", name)
 	}
-}
-
-func buildDSN() string {
-	host := getEnv("DB_HOST", "ep-young-breeze-aoz29ou7.c-2.ap-southeast-1.aws.neon.tech")
-	port := getEnv("DB_PORT", "5432")
-	dbName := getEnv("DB_NAME", "neondb")
-	user := getEnv("DB_USER", "neondb_owner")
-	password := getEnv("DB_PASSWORD", "")
-	sslMode := getEnv("DB_SSL_MODE", "require")
-
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		user, password, host, port, dbName, sslMode,
-	)
-}
-
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }

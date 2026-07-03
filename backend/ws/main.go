@@ -9,21 +9,20 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5/pgxpool"
+	rdb "github.com/redis/go-redis/v9"
 
 	"buzz48/backend/internal/config"
 	"buzz48/backend/internal/db"
 	"buzz48/backend/internal/redis"
+	"buzz48/backend/internal/ws"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		// TODO: Phase 1에서 Origin 검증 강화
-		return true
-	},
-}
+var (
+	hub               *ws.Hub
+	globalDBPool      *pgxpool.Pool
+	globalRedisClient *rdb.Client
+)
 
 func main() {
 	// 설정 로드
@@ -39,15 +38,20 @@ func main() {
 		log.Fatalf("db connect: %v", err)
 	}
 	defer pool.Close()
+	globalDBPool = pool
 	log.Println("✅ PostgreSQL 연결 완료")
 
 	// Redis 연결
-	rdb, err := redis.NewClient(cfg.RedisAddr(), cfg.RedisPassword)
+	rdbClient, err := redis.NewClient(cfg.RedisAddr(), cfg.RedisPassword)
 	if err != nil {
 		log.Fatalf("redis connect: %v", err)
 	}
-	defer rdb.Close()
+	defer rdbClient.Close()
+	globalRedisClient = rdbClient
 	log.Println("✅ Redis 연결 완료")
+
+	// WebSocket Hub 초기화
+	hub = ws.NewHub(rdbClient)
 
 	// HTTP 라우터
 	mux := http.NewServeMux()
@@ -89,18 +93,19 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("ws upgrade error: %v", err)
+	// URL 경로 예시: /v1/ws/posts/{post_id}
+	// /v1/ws/posts/ 접두사 이후의 문자열을 post_id로 추출
+	const prefix = "/v1/ws/posts/"
+	if len(r.URL.Path) <= len(prefix) {
+		http.Error(w, "Bad Request: Missing post_id", http.StatusBadRequest)
 		return
 	}
-	defer conn.Close()
+	postID := r.URL.Path[len(prefix):]
+	if postID == "" {
+		http.Error(w, "Bad Request: Missing post_id", http.StatusBadRequest)
+		return
+	}
 
-	log.Printf("🔌 WebSocket 연결: %s", r.RemoteAddr)
-
-	// Phase 1에서 실제 핸들러 구현 예정
-	conn.WriteJSON(map[string]string{
-		"type":    "error",
-		"message": "WebSocket handler — Phase 1에서 구현 예정",
-	})
+	// db pool과 redis, w, r을 넘겨서 클라이언트 소켓 연결 시작
+	ws.CreateWSClient(hub, globalDBPool, globalRedisClient, w, r, postID)
 }
