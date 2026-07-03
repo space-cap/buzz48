@@ -18,6 +18,7 @@ export default function Home() {
 	// 검색 상태 관리
 	const [searchKeyword, setSearchKeyword] = useState('');
 	const [searchQuery, setSearchQuery] = useState('');
+	const [isSearchFocused, setIsSearchFocused] = useState(false);
 
 	// 무한 스크롤 감지용 Ref
 	const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
@@ -201,12 +202,20 @@ export default function Home() {
 					</div>
 
 					{/* 실시간 검색창 폼 */}
-					<form onSubmit={handleSearchSubmit} style={styles.searchForm}>
+					<form 
+						onSubmit={handleSearchSubmit} 
+						style={{
+							...styles.searchForm,
+							borderColor: isSearchFocused ? 'var(--primary)' : 'var(--border-color)'
+						}}
+					>
 						<span style={styles.searchIcon}>🔍</span>
 						<input
 							type="text"
 							value={searchKeyword}
 							onChange={(e) => setSearchKeyword(e.target.value)}
+							onFocus={() => setIsSearchFocused(true)}
+							onBlur={() => setIsSearchFocused(false)}
 							placeholder="제목, 내용 키워드 검색..."
 							style={styles.searchInput}
 						/>
@@ -622,9 +631,6 @@ const styles = {
 		maxWidth: '320px',
 		boxShadow: 'var(--shadow-sm)',
 		transition: 'border-color 0.2s',
-		'&:focus-within': {
-			borderColor: 'var(--primary)',
-		}
 	},
 	searchIcon: {
 		fontSize: '0.9rem',
