@@ -77,53 +77,57 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 
 		socket.onmessage = (event) => {
 			try {
-				const data = JSON.parse(event.data);
-				
-				switch (data.type) {
-					case 'post_snapshot':
-						const payload = data.payload;
-						setPostState(payload.state);
-						setConnCount(payload.conn_count);
-						if (payload.recent_messages && messages.length === 0) {
-							setMessages(payload.recent_messages);
-						}
-						if (payload.reactions) {
-							const rxMap: Record<string, number> = { '👍': 0, '❤️': 0, '😂': 0, '😡': 0 };
-							payload.reactions.forEach((rx: any) => {
-								rxMap[rx.emoji] = rx.count;
-							});
-							setReactions(rxMap);
-						}
-						break;
+				// 개행 (\n) 문자로 구분된 다중 패킷 파싱 지원 (WritePump 일괄 Flush 호환)
+				const lines = event.data.split('\n');
+				for (const line of lines) {
+					if (!line.trim()) continue;
+					const data = JSON.parse(line);
+					
+					switch (data.type) {
+						case 'post_snapshot':
+							const payload = data.payload;
+							setPostState(payload.state);
+							setConnCount(payload.conn_count);
+							if (payload.recent_messages && messages.length === 0) {
+								setMessages(payload.recent_messages);
+							}
+							if (payload.reactions) {
+								const rxMap: Record<string, number> = { '👍': 0, '❤️': 0, '😂': 0, '😡': 0 };
+								payload.reactions.forEach((rx: any) => {
+									rxMap[rx.emoji] = rx.count;
+								});
+								setReactions(rxMap);
+							}
+							break;
 
-					case 'message_received':
-						setMessages(prev => [...prev, data.payload]);
-						break;
+						case 'message_received':
+							setMessages(prev => [...prev, data.payload]);
+							break;
 
-					case 'conn_count_updated':
-						setConnCount(data.payload.conn_count);
-						break;
+						case 'conn_count_updated':
+							setConnCount(data.payload.conn_count);
+							break;
 
-					case 'post_state_changed':
-						setPostState(data.payload.state);
-						break;
+						case 'post_state_changed':
+							setPostState(data.payload.state);
+							break;
 
-					case 'reaction_updated':
-						const updatedRx = data.payload;
-						setReactions(prev => ({
-							...prev,
-							[updatedRx.emoji]: updatedRx.count
-						}));
-						break;
+						case 'reaction_updated':
+							const updatedRx = data.payload;
+							setReactions(prev => ({
+								...prev,
+								[updatedRx.emoji]: updatedRx.count
+							}));
+							break;
 
-					case 'sync_result':
-						// 누락된 메시지 복구 적용
-						const missed = data.payload.missed_messages || [];
-						if (missed.length > 0) {
-							console.log(`📥 [WebSocket] 동기화로 ${missed.length}개 누락 메시지 복원`);
-							setMessages(prev => [...prev, ...missed]);
-						}
-						break;
+						case 'sync_result':
+							const missed = data.payload.missed_messages || [];
+							if (missed.length > 0) {
+								console.log(`📥 [WebSocket] 동기화로 ${missed.length}개 누락 메시지 복원`);
+								setMessages(prev => [...prev, ...missed]);
+							}
+							break;
+					}
 				}
 			} catch (err) {
 				console.error('웹소켓 데이터 파싱 오류:', err);

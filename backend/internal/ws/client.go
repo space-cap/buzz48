@@ -241,7 +241,7 @@ func (c *Client) readPump() {
 		}
 
 		var event struct {
-			Event   string          `json:"event"`
+			Type    string          `json:"type"`
 			Payload json.RawMessage `json:"payload"`
 		}
 
@@ -250,10 +250,10 @@ func (c *Client) readPump() {
 			continue
 		}
 
-		switch event.Event {
+		switch event.Type {
 		case "send_message":
 			c.handleSendMessage(event.Payload)
-		case "send_reaction":
+		case "toggle_reaction":
 			c.handleSendReaction(event.Payload)
 		case "sync":
 			c.handleSync(event.Payload)
