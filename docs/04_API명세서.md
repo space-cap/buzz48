@@ -1,7 +1,6 @@
 # [API 명세서] 버즈48 (Buzz48)
 
-> **버전**: v1.0 | **작성일**: 2026-07-03 | **기반 문서**: PRD v1.0, 시스템 아키텍처 설계서 v1.0, DB 설계서 v1.0
-> **문서 목적**: 프론트엔드/백엔드 분업 개발이 가능한 수준의 REST API 및 WebSocket 이벤트 명세 제공.
+> **버전**: v1.1 | **작성일**: 2026-07-03 | **기반 문서**: PRD v1.1, 시스템 아키텍처 설계서 v1.2, DB 설계서 v1.1
 
 ---
 
@@ -28,8 +27,8 @@ WebSocket 연결 시에도 동일한 세션 토큰을 최초 핸드셰이크에�
 ```json
 {
   "error": {
-    "code": "ROOM_NOT_FOUND",
-    "message": "요청한 토론방을 찾을 수 없습니다.",
+    "code": "POST_NOT_FOUND",
+    "message": "요청한 게시물을 찾을 수 없습니다.",
     "details": {}
   }
 }
@@ -40,8 +39,8 @@ WebSocket 연결 시에도 동일한 세션 토큰을 최초 핸드셰이크에�
 | 코드 | HTTP Status | 설명 |
 | :--- | :--- | :--- |
 | `SESSION_EXPIRED` | 401 | 세션 만료 또는 유효하지 않음 |
-| `ROOM_NOT_FOUND` | 404 | 방이 존재하지 않거나 이미 DELETE 상태 |
-| `ROOM_NOT_LIVE` | 403 | LIVE 상태가 아닌 방에 쓰기 시도 (PRD CHAT-01) |
+| `POST_NOT_FOUND` | 404 | 게시물이 존재하지 않거나 이미 DELETE 상태 |
+| `POST_NOT_LIVE` | 403 | LIVE 상태가 아닌 게시물에 쓰기 시도 (PRD CHAT-01) |
 | `RATE_LIMITED` | 429 | Rate Limit 초과 (응답에 `retry_after_seconds` 포함) |
 | `VALIDATION_ERROR` | 400 | 요청 필드 검증 실패 |
 | `FORBIDDEN_CONTENT` | 422 | 금칙어 필터 1차 차단 (PRD MOD-02) |
@@ -101,10 +100,10 @@ WebSocket 연결 시에도 동일한 세션 토큰을 최초 핸드셰이크에�
 
 ---
 
-### 2.2 토론방
+### 2.2 게시물
 
-#### `POST /rooms`
-토론방 생성. (PRD ROOM-01~04)
+#### `POST /posts`
+게시물 작성. (PRD POST-01~04)
 
 **Request**
 ```json
@@ -121,7 +120,7 @@ WebSocket 연결 시에도 동일한 세션 토큰을 최초 핸드셰이크에�
 **Response** `201 Created`
 ```json
 {
-  "room_id": "r-uuid",
+  "post_id": "r-uuid",
   "title": "오늘 코스피 왜 이래요",
   "category": "경제·주식",
   "state": "LIVE",
@@ -136,14 +135,14 @@ WebSocket 연결 시에도 동일한 세션 토큰을 최초 핸드셰이크에�
 {
   "error": {
     "code": "RATE_LIMITED",
-    "message": "토론방 생성 한도를 초과했습니다.",
+    "message": "게시물 작성 한도를 초과했습니다.",
     "details": { "retry_after_seconds": 1800, "limit": "3/hour" }
   }
 }
 ```
 
-#### `GET /rooms`
-타임라인 목록 조회. (기획서 §3.1)
+#### `GET /posts`
+게시판 목록 조회. (기획서 §3.1)
 
 **Query Parameters**
 
@@ -157,9 +156,9 @@ WebSocket 연결 시에도 동일한 세션 토큰을 최초 핸드셰이크에�
 **Response** `200 OK`
 ```json
 {
-  "rooms": [
+  "posts": [
     {
-      "room_id": "r-uuid",
+      "post_id": "r-uuid",
       "title": "오늘 코스피 왜 이래요",
       "category": "경제·주식",
       "state": "LIVE",
@@ -173,25 +172,25 @@ WebSocket 연결 시에도 동일한 세션 토큰을 최초 핸드셰이크에�
 ```
 > `state`는 서버가 `created_at` 기준으로 매 요청마다 재계산하여 반환(PRD §4.2 이중 검증 원칙 — 캐시 값이 아닌 실제 판정값)
 
-#### `GET /rooms/hot`
-HOT 상위 3개 방 조회. (PRD HOT-03)
+#### `GET /posts/hot`
+HOT 상위 3개 게시물 조회. (PRD HOT-03)
 
 **Response** `200 OK`
 ```json
 {
-  "rooms": [
-    { "room_id": "r-uuid-1", "title": "...", "conn_count": 432, "score": 218.4, "remaining_seconds": 29534 }
+  "posts": [
+    { "post_id": "r-uuid-1", "title": "...", "conn_count": 432, "score": 218.4, "remaining_seconds": 29534 }
   ]
 }
 ```
 
-#### `GET /rooms/{room_id}`
-토론방 상세(원문 게시글 + 메타 정보). 채팅 메시지 자체는 WebSocket 또는 §2.3 API로 별도 조회.
+#### `GET /posts/{post_id}`
+게시물 상세(원문 게시글 + 메타 정보). 채팅 메시지 자체는 WebSocket 또는 §2.3 API로 별도 조회.
 
 **Response** `200 OK`
 ```json
 {
-  "room_id": "r-uuid",
+  "post_id": "r-uuid",
   "title": "오늘 코스피 왜 이래요",
   "content": "장 초반부터 이상한데...",
   "category": "경제·주식",
@@ -202,15 +201,15 @@ HOT 상위 3개 방 조회. (PRD HOT-03)
   "creator_nickname": "커피 네 잔째인 직장인"
 }
 ```
-**에러**: 존재하지 않거나 DELETE된 방은 `ROOM_NOT_FOUND` (PRD §4.2 — 전용 종료 안내 페이지로 클라이언트가 처리)
+**에러**: 존재하지 않거나 DELETE된 게시물은 `POST_NOT_FOUND` (PRD §4.2 — 전용 종료 안내 페이지로 클라이언트가 처리)
 
 ---
 
 ### 2.3 메시지 (READ 상태 조회 전용)
 
-LIVE 상태 메시지는 WebSocket으로만 송수신한다. 이 API는 READ 상태로 전환된 방의 과거 메시지를 스크롤 조회할 때만 사용한다(PRD §4.2 커서 기반 페이지네이션).
+LIVE 상태 메시지는 WebSocket으로만 송수신한다. 이 API는 READ 상태로 전환된 게시물의 과거 메시지를 스크롤 조회할 때만 사용한다(PRD §4.2 커서 기반 페이지네이션).
 
-#### `GET /rooms/{room_id}/messages`
+#### `GET /posts/{post_id}/messages`
 
 **Query Parameters**: `cursor`, `limit`(기본 50)
 
@@ -265,10 +264,10 @@ AI 필터 오탐 이의제기. (PRD §6.2)
 
 ---
 
-### 2.5 프리미엄 토론방 결제
+### 2.5 프리미엄 게시물 결제
 
-#### `POST /rooms/{room_id}/payments`
-프리미엄 토론방 입장 결제. (PRD PAY-01, PAY-02)
+#### `POST /posts/{post_id}/payments`
+프리미엄 게시물 입장 결제. (PRD PAY-01, PAY-02)
 
 **Request**
 ```json
@@ -313,11 +312,11 @@ AI 필터 오탐 이의제기. (PRD §6.2)
 ### 3.1 연결 및 인증
 
 ```
-wss://ws.buzz48.app/v1/rooms/{room_id}?token={session_token}
+wss://ws.buzz48.app/v1/posts/{post_id}?token={session_token}
 ```
 
 - 최초 핸드셰이크에서 `token` 검증 후 커넥션에 세션 정보 바인딩.
-- 연결 성공 시 서버는 즉시 `room_snapshot` 이벤트로 현재 상태(최근 메시지 50개, 동접자 수, 방 상태)를 전송한다.
+- 연결 성공 시 서버는 즉시 `post_snapshot` 이벤트로 현재 상태(최근 메시지 50개, 동접자 수, 게시물 상태)를 전송한다.
 
 ### 3.2 클라이언트 → 서버 이벤트
 
@@ -331,7 +330,7 @@ wss://ws.buzz48.app/v1/rooms/{room_id}?token={session_token}
   }
 }
 ```
-- 서버는 수신 시각 기준으로 `created_at + 24h` 재계산하여 LIVE 여부 판정(PRD §3.2, §4.2). LIVE가 아니면 `error` 이벤트(`ROOM_NOT_LIVE`) 반환.
+- 서버는 수신 시각 기준으로 `created_at + 24h` 재계산하여 LIVE 여부 판정(PRD §3.2, §4.2). LIVE가 아니면 `error` 이벤트(`POST_NOT_LIVE`) 반환.
 - 500자 초과 시 `error`(`VALIDATION_ERROR`).
 
 #### `send_reaction`
@@ -354,11 +353,11 @@ wss://ws.buzz48.app/v1/rooms/{room_id}?token={session_token}
 
 ### 3.3 서버 → 클라이언트 이벤트
 
-#### `room_snapshot`
+#### `post_snapshot`
 연결 직후 1회 전송.
 ```json
 {
-  "event": "room_snapshot",
+  "event": "post_snapshot",
   "payload": {
     "state": "LIVE",
     "conn_count": 432,
@@ -391,15 +390,15 @@ wss://ws.buzz48.app/v1/rooms/{room_id}?token={session_token}
 }
 ```
 
-#### `room_state_changed`
+#### `post_state_changed`
 LIVE→READ 전환 등 상태 변경 시 즉시 통지. (PRD LIFE-03)
 ```json
 {
-  "event": "room_state_changed",
+  "event": "post_state_changed",
   "payload": { "state": "READ", "changed_at": "2026-07-04T09:10:00Z" }
 }
 ```
-- 클라이언트는 이 이벤트 수신 시 입력창 비활성화 + "읽기 전용 토론방입니다" 안내 노출 (기획서 §3.2 하단 입력창)
+- 클라이언트는 이 이벤트 수신 시 입력창 비활성화 + "읽기 전용 게시물입니다" 안내 노출 (기획서 §3.2 하단 입력창)
 
 #### `conn_count_updated`
 ```json
@@ -425,7 +424,7 @@ LIVE→READ 전환 등 상태 변경 시 즉시 통지. (PRD LIFE-03)
 ```json
 {
   "event": "error",
-  "payload": { "code": "ROOM_NOT_LIVE", "message": "이 토론방은 읽기 전용 상태입니다." }
+  "payload": { "code": "POST_NOT_LIVE", "message": "이 게시물은 읽기 전용 상태입니다." }
 }
 ```
 
@@ -435,10 +434,10 @@ LIVE→READ 전환 등 상태 변경 시 즉시 통지. (PRD LIFE-03)
 
 | 대상 | 제한 | 근거 |
 | :--- | :--- | :--- |
-| 토론방 생성 | 세션/계정당 1시간 3개 (60분 슬라이딩) | PRD ROOM-03 |
+| 게시물 작성 | 세션/계정당 1시간 3개 (60분 슬라이딩) | PRD POST-03 |
 | 메시지 전송 | 초당 5건(스팸 방지, 세부값은 운영 중 조정) | PRD §4.4, §6 |
-| 신고 접수 | 동일 대상 세션당 1일 10건 | PRD §6 확장 |
-| 알림 발송 | 동일 유저·방·유형 1일 1회 | PRD §7.2 |
+| 신고 접수 | 동일 대상 세션당 1일 10건 | PRD §6 홍장 |
+| 알림 발송 | 동일 유저·게시물·유형 1일 1회 | PRD §7.2 |
 
 Rate Limit 초과 시 REST는 `429` + `RATE_LIMITED`, WebSocket은 `error` 이벤트로 통지.
 
