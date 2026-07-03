@@ -1,7 +1,8 @@
 -- =============================================================
--- 버즈48 (Buzz48) — 초기 스키마 마이그레이션 v1.0
--- 기반 문서: 05_DB설계서.md v1.0
+-- 버즈48 (Buzz48) — 초기 스키마 마이그레이션 v1.1
+-- 기반 문서: 05_DB설계서.md v1.1
 -- 대상 DB: Neon Serverless PostgreSQL
+-- 변경: rooms → posts (게시판 게시물 컨셉 반영)
 -- =============================================================
 
 -- -----------------------------------------------
@@ -43,12 +44,12 @@ CREATE TABLE IF NOT EXISTS ip_logs (
 CREATE INDEX IF NOT EXISTS idx_ip_logs_created_at ON ip_logs(created_at); -- 30일 TTL 파기 배치 스캔용
 
 -- -----------------------------------------------
--- §3.2 토론방 및 메시지 아카이브
+-- §3.2 게시물 및 메시지 아카이브
 -- -----------------------------------------------
 
--- 토론방 (생성 시점 정보만 저장, LIVE 상태 실시간 데이터는 Redis)
+-- 게시물 (생성 시점 정보만 저장, LIVE 상태 실시간 데이터는 Redis)
 -- state 컬럼 없음: created_at으로 항상 재계산 (PRD §4.2, 아키텍처 §3.2 이중 검증 원칙)
-CREATE TABLE IF NOT EXISTS rooms (
+CREATE TABLE IF NOT EXISTS posts (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     creator_session_id  UUID NOT NULL REFERENCES sessions(id),
     creator_user_id     UUID REFERENCES users(id),
@@ -60,13 +61,13 @@ CREATE TABLE IF NOT EXISTS rooms (
     is_premium          BOOLEAN NOT NULL DEFAULT FALSE,
     archived_to_pg_at   TIMESTAMPTZ                        -- LIVE→READ 전환 시 Redis→PG 이관 완료 시각
 );
-CREATE INDEX IF NOT EXISTS idx_rooms_category_created ON rooms(category, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_rooms_created_at       ON rooms(created_at); -- Lifecycle/Purge Worker 스캔용
+CREATE INDEX IF NOT EXISTS idx_posts_category_created ON posts(category, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_created_at       ON posts(created_at); -- Lifecycle/Purge Worker 스캔용
 
 -- 메시지 아카이브 (월별 파티션, created_at 기준)
 CREATE TABLE IF NOT EXISTS messages_archive (
     id                  UUID NOT NULL DEFAULT gen_random_uuid(),
-    room_id             UUID NOT NULL REFERENCES rooms(id),
+    post_id             UUID NOT NULL REFERENCES posts(id),
     sender_session_id   UUID NOT NULL REFERENCES sessions(id),
     reply_to_id         UUID,                   -- 자기참조, 파티션 특성상 애플리케이션 레벨 검증
     content             TEXT NOT NULL,
@@ -86,7 +87,7 @@ CREATE TABLE IF NOT EXISTS messages_archive_2026_08
     PARTITION OF messages_archive
     FOR VALUES FROM ('2026-08-01') TO ('2026-09-01');
 
-CREATE INDEX IF NOT EXISTS idx_msg_archive_room_id ON messages_archive(room_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_msg_archive_post_id ON messages_archive(post_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_msg_archive_sender  ON messages_archive(sender_session_id);
 
 -- 이모지 반응 아카이브
@@ -107,7 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_reactions_message_id ON reactions_archive(message
 
 CREATE TABLE IF NOT EXISTS reports (
     id                  BIGSERIAL PRIMARY KEY,
-    target_type         VARCHAR(10) NOT NULL,    -- 'message' | 'room'
+    target_type         VARCHAR(10) NOT NULL,    -- 'message' | 'post'
     target_id           UUID NOT NULL,
     reporter_session_id UUID NOT NULL REFERENCES sessions(id),
     reason              VARCHAR(20) NOT NULL,    -- '욕설/혐오' | '허위정보' | '스팸/도배' | '개인정보노출'
@@ -137,7 +138,7 @@ CREATE INDEX IF NOT EXISTS idx_sanctions_session_recent ON sanctions(session_id,
 CREATE TABLE IF NOT EXISTS legal_hold_archive (
     id                  UUID PRIMARY KEY,
     original_message_id UUID NOT NULL,
-    room_id             UUID NOT NULL,
+    post_id             UUID NOT NULL,
     content             TEXT NOT NULL,
     sender_session_id   UUID NOT NULL,
     created_at          TIMESTAMPTZ NOT NULL,
@@ -146,11 +147,11 @@ CREATE TABLE IF NOT EXISTS legal_hold_archive (
 );
 
 -- -----------------------------------------------
--- §3.4 결제 및 정산 (프리미엄 토론방, Phase 3)
+-- §3.4 결제 및 정산 (프리미엄 게시물, Phase 3)
 -- -----------------------------------------------
 
-CREATE TABLE IF NOT EXISTS premium_rooms (
-    room_id         UUID PRIMARY KEY REFERENCES rooms(id),
+CREATE TABLE IF NOT EXISTS premium_posts (
+    post_id         UUID PRIMARY KEY REFERENCES posts(id),
     creator_id      UUID NOT NULL REFERENCES users(id),
     entry_price     INTEGER NOT NULL,            -- 인앱 재화 단위
     commission_rate NUMERIC(4,2) NOT NULL DEFAULT 0.25, -- 20~30% 중 정책값
@@ -160,7 +161,7 @@ CREATE TABLE IF NOT EXISTS premium_rooms (
 CREATE TABLE IF NOT EXISTS payments (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID NOT NULL REFERENCES users(id),
-    room_id             UUID NOT NULL REFERENCES rooms(id),
+    post_id             UUID NOT NULL REFERENCES posts(id),
     amount              INTEGER NOT NULL,
     currency            VARCHAR(10) NOT NULL DEFAULT 'KRW',
     pg_transaction_id   VARCHAR(100),            -- PG사 거래 ID
@@ -170,7 +171,7 @@ CREATE TABLE IF NOT EXISTS payments (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
-CREATE INDEX IF NOT EXISTS idx_payments_room_id ON payments(room_id);
+CREATE INDEX IF NOT EXISTS idx_payments_post_id ON payments(post_id);
 
 CREATE TABLE IF NOT EXISTS settlements (
     id                BIGSERIAL PRIMARY KEY,
@@ -193,18 +194,17 @@ CREATE TABLE IF NOT EXISTS notifications_log (
     id                  BIGSERIAL PRIMARY KEY,
     user_id             UUID REFERENCES users(id),
     session_id          UUID REFERENCES sessions(id),
-    room_id             UUID REFERENCES rooms(id),
+    post_id             UUID REFERENCES posts(id),
     notification_type   VARCHAR(20) NOT NULL,    -- 'hot_entry' | 'expiry_1h' | 'reply' | 'reaction'
     sent_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
     sent_date           DATE NOT NULL DEFAULT CURRENT_DATE -- PRD §7.2 중복 차단 인덱스용 (UTC 기준)
 );
--- PRD §7.2: 동일 유저-방-유형 1일 1회 제한 (로그인 유저용)
+-- PRD §7.2: 동일 유저-게시물-유형 1일 1회 제한 (로그인 유저용)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_noti_dedup_user ON notifications_log (
-    user_id, room_id, notification_type, sent_date
+    user_id, post_id, notification_type, sent_date
 ) WHERE user_id IS NOT NULL;
 
--- PRD §7.2: 동일 세션-방-유형 1일 1회 제한 (익명 유저용)
+-- PRD §7.2: 동일 세션-게시물-유형 1일 1회 제한 (익명 유저용)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_noti_dedup_session ON notifications_log (
-    session_id, room_id, notification_type, sent_date
+    session_id, post_id, notification_type, sent_date
 ) WHERE session_id IS NOT NULL AND user_id IS NULL;
-

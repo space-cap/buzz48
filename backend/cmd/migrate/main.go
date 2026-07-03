@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,41 +15,48 @@ import (
 func main() {
 	dsn := buildDSN()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	fmt.Println("🔌 Neon PostgreSQL 연결 중...")
 	conn, err := pgx.Connect(ctx, dsn)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ 연결 실패: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("❌ 연결 실패: %v", err)
 	}
 	defer conn.Close(ctx)
 	fmt.Println("✅ 연결 성공")
 
-	// migrations/ 폴더 경로 (이 파일 기준 두 단계 위 → backend/migrations/)
+	// ── 1단계: 스키마 초기화 (DROP + CREATE) ──
+	fmt.Println("🗑️  기존 스키마 삭제 중...")
+	_, err = conn.Exec(ctx, `
+		DROP SCHEMA public CASCADE;
+		CREATE SCHEMA public;
+		GRANT ALL ON SCHEMA public TO PUBLIC;
+	`)
+	if err != nil {
+		log.Fatalf("❌ 스키마 초기화 실패: %v", err)
+	}
+	fmt.Println("✅ 스키마 초기화 완료 (모든 테이블 삭제됨)")
+
+	// ── 2단계: 마이그레이션 실행 ──
 	_, filename, _, _ := runtime.Caller(0)
 	migrationsDir := filepath.Join(filepath.Dir(filename), "..", "..", "migrations")
 
 	sqlFile := filepath.Join(migrationsDir, "001_initial_schema.sql")
 	sql, err := os.ReadFile(sqlFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ SQL 파일 읽기 실패: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("❌ SQL 파일 읽기 실패: %v", err)
 	}
 
 	fmt.Printf("📄 마이그레이션 실행 중: %s\n", filepath.Base(sqlFile))
-
 	_, err = conn.Exec(ctx, string(sql))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "❌ 마이그레이션 실패:\n%v\n", err)
-		os.Exit(1)
+		log.Fatalf("❌ 마이그레이션 실패:\n%v", err)
 	}
-
 	fmt.Println("✅ 마이그레이션 완료!")
 	fmt.Println()
 
-	// 생성된 테이블 목록 확인
+	// ── 3단계: 생성된 테이블 목록 확인 ──
 	rows, err := conn.Query(ctx, `
 		SELECT tablename
 		FROM pg_tables
@@ -56,8 +64,7 @@ func main() {
 		ORDER BY tablename
 	`)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "⚠️  테이블 목록 조회 실패: %v\n", err)
-		return
+		log.Fatalf("❌ 테이블 목록 조회 실패: %v", err)
 	}
 	defer rows.Close()
 
