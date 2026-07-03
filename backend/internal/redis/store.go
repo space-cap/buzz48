@@ -15,6 +15,41 @@ import (
 //               disconnect_pending 키 TTL 60초 방식으로 어뷰징 방어
 // ──────────────────────────────────────────────────────────────
 
+// viewIncrScript — 중복 조회 방지 가드(10분 TTL)가 없을 때에만 조회수 INCR
+var viewIncrScript = redis.NewScript(`
+local exists = redis.call('EXISTS', KEYS[1])
+if exists == 0 then
+    redis.call('SET', KEYS[1], '1', 'EX', ARGV[1])
+    return redis.call('INCR', KEYS[2])
+else
+    local v = redis.call('GET', KEYS[2])
+    if v then return tonumber(v) else return 0 end
+end
+`)
+
+// PostViewIncr는 중복 검사 후 안전하게 실시간 조회수를 1 증가시킵니다.
+func PostViewIncr(ctx context.Context, rdb *redis.Client, sessionID, postID string) (int64, error) {
+	keys := []string{
+		KeyPostViewGuard(sessionID, postID),
+		KeyPostViewCount(postID),
+	}
+	// 가드 키 10분(600초) 설정
+	res, err := viewIncrScript.Run(ctx, rdb, keys, 600).Int64()
+	if err != nil {
+		return 0, err
+	}
+	return res, nil
+}
+
+// PostViewCount는 Redis 내 실시간 조회수 카운터 값을 조회합니다.
+func PostViewCount(ctx context.Context, rdb *redis.Client, postID string) (int64, error) {
+	val, err := rdb.Get(ctx, KeyPostViewCount(postID)).Int64()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	return val, err
+}
+
 // ConnIncr — WebSocket 연결 시 동접자 수 처리.
 //   - disconnect_pending 키가 있으면(재연결): 키만 삭제하고 INCR 생략 (이미 카운트됨)
 //   - disconnect_pending 키가 없으면(신규 연결): INCR +1

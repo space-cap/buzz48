@@ -249,6 +249,7 @@ export default function Home() {
 							<span style={styles.headerCategory}>분류</span>
 							<span style={styles.headerTitle}>제목</span>
 							<span style={styles.headerConn}>참여</span>
+							<span style={styles.headerViews}>조회</span>
 							<span style={styles.headerTimer}>남은 시간</span>
 						</div>
 						{/* 리스트 로우 */}
@@ -272,6 +273,11 @@ export default function Home() {
 										{/* 참여자 수 */}
 										<span style={styles.rowConn}>
 											👀 {post.conn_count}
+										</span>
+
+										{/* 조회수 */}
+										<span style={styles.rowViews}>
+											🔥 {post.view_count}
 										</span>
 
 										{/* 남은 시간 타이머 */}
@@ -522,6 +528,16 @@ const styles = {
 		textTransform: 'uppercase' as const,
 		letterSpacing: '0.5px',
 		whiteSpace: 'nowrap' as const,
+		width: '60px',
+		textAlign: 'right' as const,
+	},
+	headerViews: {
+		fontSize: '0.72rem',
+		fontWeight: 700,
+		color: 'var(--text-muted)',
+		textTransform: 'uppercase' as const,
+		letterSpacing: '0.5px',
+		whiteSpace: 'nowrap' as const,
 		width: '70px',
 		textAlign: 'right' as const,
 	},
@@ -577,6 +593,15 @@ const styles = {
 		gap: '6px',
 	},
 	rowConn: {
+		flexShrink: 0,
+		width: '60px',
+		textAlign: 'right' as const,
+		fontSize: '0.8rem',
+		fontWeight: 600,
+		color: 'var(--text-muted)',
+		whiteSpace: 'nowrap' as const,
+	},
+	rowViews: {
 		flexShrink: 0,
 		width: '70px',
 		textAlign: 'right' as const,

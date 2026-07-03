@@ -139,7 +139,7 @@ func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, curs
 	if category != "" {
 		if search != "" {
 			rows, err = d.DB.Query(ctx,
-				`SELECT id, title, category, created_at, is_premium
+				`SELECT id, title, category, created_at, is_premium, view_count
 				 FROM posts
 				 WHERE category=$1 AND created_at > $2 AND created_at < $3
 				   AND (title ILIKE $4 OR content ILIKE $4)
@@ -149,7 +149,7 @@ func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, curs
 			)
 		} else {
 			rows, err = d.DB.Query(ctx,
-				`SELECT id, title, category, created_at, is_premium
+				`SELECT id, title, category, created_at, is_premium, view_count
 				 FROM posts
 				 WHERE category=$1 AND created_at > $2 AND created_at < $3
 				 ORDER BY created_at DESC
@@ -160,7 +160,7 @@ func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, curs
 	} else {
 		if search != "" {
 			rows, err = d.DB.Query(ctx,
-				`SELECT id, title, category, created_at, is_premium
+				`SELECT id, title, category, created_at, is_premium, view_count
 				 FROM posts
 				 WHERE created_at > $1 AND created_at < $2
 				   AND (title ILIKE $3 OR content ILIKE $3)
@@ -170,7 +170,7 @@ func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, curs
 			)
 		} else {
 			rows, err = d.DB.Query(ctx,
-				`SELECT id, title, category, created_at, is_premium
+				`SELECT id, title, category, created_at, is_premium, view_count
 				 FROM posts
 				 WHERE created_at > $1 AND created_at < $2
 				 ORDER BY created_at DESC
@@ -190,6 +190,7 @@ func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, curs
 		Category         string `json:"category"`
 		State            string `json:"state"`
 		ConnCount        int64  `json:"conn_count"`
+		ViewCount        int64  `json:"view_count"`
 		RemainingSeconds int64  `json:"remaining_seconds"`
 		IsNew            bool   `json:"is_new"`
 		IsPremium        bool   `json:"is_premium"`
@@ -203,8 +204,9 @@ func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, curs
 		var title, category string
 		var createdAt time.Time
 		var isPremium bool
+		var dbViews int64
 
-		if err := rows.Scan(&id, &title, &category, &createdAt, &isPremium); err != nil {
+		if err := rows.Scan(&id, &title, &category, &createdAt, &isPremium, &dbViews); err != nil {
 			continue
 		}
 		lastCreatedAt = createdAt
@@ -221,8 +223,10 @@ func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, curs
 			remaining = 0
 		}
 
-		// 동접자 수 조회
+		// 동접자 수 및 실시간 조회수 병합 조회
 		connCount, _ := iredis.ConnCount(ctx, d.Redis, id.String())
+		redisViews, _ := iredis.PostViewCount(ctx, d.Redis, id.String())
+		totalViews := dbViews + redisViews
 
 		posts = append(posts, PostItem{
 			PostID:           id.String(),
@@ -230,6 +234,7 @@ func (d *Deps) listPostsLatest(ctx context.Context, c *fiber.Ctx, category, curs
 			Category:         category,
 			State:            state,
 			ConnCount:        connCount,
+			ViewCount:        totalViews,
 			RemainingSeconds: remaining,
 			IsNew:            elapsed < 5*time.Minute,
 			IsPremium:        isPremium,
@@ -333,13 +338,14 @@ func (d *Deps) GetPost(c *fiber.Ctx) error {
 		category         string
 		isPremium        bool
 		creatorSessionID uuid.UUID
+		dbViews          int64
 	)
 
 	err = d.DB.QueryRow(ctx,
-		`SELECT title, content, category, is_premium, creator_session_id
+		`SELECT title, content, category, is_premium, creator_session_id, view_count
 		 FROM posts WHERE id=$1`,
 		postID,
-	).Scan(&title, &content, &category, &isPremium, &creatorSessionID)
+	).Scan(&title, &content, &category, &isPremium, &creatorSessionID, &dbViews)
 
 	if err == pgx.ErrNoRows {
 		return errJSON(c, fiber.StatusNotFound, "POST_NOT_FOUND", "요청한 게시물을 찾을 수 없습니다.")
@@ -358,7 +364,20 @@ func (d *Deps) GetPost(c *fiber.Ctx) error {
 		remaining = 0
 	}
 
+	// 상세 진입 시 조회수 카운팅 (중복 조회 방지 가드 작동)
+	if state == "LIVE" {
+		sID, sErr := sessionFromCookie(c)
+		sessionIDStr := "anonymous"
+		if sErr == nil {
+			sessionIDStr = sID.String()
+		}
+		_, _ = iredis.PostViewIncr(ctx, d.Redis, sessionIDStr, postID.String())
+	}
+
 	connCount, _ := iredis.ConnCount(ctx, d.Redis, postID.String())
+	redisViews, _ := iredis.PostViewCount(ctx, d.Redis, postID.String())
+	totalViews := dbViews + redisViews
+
 	creatorNick, _ := d.getSessionNickname(ctx, creatorSessionID)
 
 	return c.JSON(fiber.Map{
@@ -368,6 +387,7 @@ func (d *Deps) GetPost(c *fiber.Ctx) error {
 		"category":          category,
 		"state":             state,
 		"conn_count":        connCount,
+		"view_count":        totalViews,
 		"remaining_seconds": remaining,
 		"is_premium":        isPremium,
 		"creator_nickname":  creatorNick,

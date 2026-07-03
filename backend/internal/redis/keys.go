@@ -65,3 +65,13 @@ func KeyDisconnectPending(sessionID, postID string) string {
 func KeyPubSubPost(postID string) string {
 	return fmt.Sprintf("pubsub:post:%s", postID)
 }
+
+// KeyPostViewCount — String: 게시글 실시간 조회수 카운터 (post:{post_id}:view_count)
+func KeyPostViewCount(postID string) string {
+	return fmt.Sprintf("post:%s:view_count", postID)
+}
+
+// KeyPostViewGuard — String: 중복 조회 방지 가드 TTL 10분 (view_guard:{session_id}:{post_id})
+func KeyPostViewGuard(sessionID, postID string) string {
+	return fmt.Sprintf("view_guard:%s:%s", sessionID, postID)
+}

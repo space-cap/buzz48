@@ -12,6 +12,7 @@ export interface PostItem {
 	category: string;
 	state: "LIVE" | "READ";
 	conn_count: number;
+	view_count: number;
 	remaining_seconds: number;
 	is_new: boolean;
 	is_premium: boolean;
@@ -23,6 +24,7 @@ export interface HotPostItem {
 	title: string;
 	category: string;
 	conn_count: number;
+	view_count?: number;
 	score: number;
 	remaining_seconds: number;
 }

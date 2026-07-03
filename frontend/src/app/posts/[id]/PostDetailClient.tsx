@@ -194,7 +194,10 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 						</div>
 
 						<h1 style={styles.postTitle}>{post.title}</h1>
-						<p style={styles.postAuthor}>작성자: 👤 {post.creator_nickname || '익명 세션 유저'}</p>
+						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+							<span>작성자: 👤 {post.creator_nickname || '익명 세션 유저'}</span>
+							<span>🔥 조회 {post.view_count ?? 0}</span>
+						</div>
 
 						<hr style={styles.divider} />
 

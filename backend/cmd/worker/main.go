@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -48,8 +49,9 @@ func main() {
 	go startHotScoreWorker(ctx, pool, rdbClient)
 	go startLifecycleWorker(ctx, pool, rdbClient)
 	go startPurgeWorker(ctx, pool, rdbClient)
+	go startViewCountWorker(ctx, pool, rdbClient)
 
-	log.Println("🚀 모든 배치 워커(HOT Score, Lifecycle, Purge) 기동 완료")
+	log.Println("🚀 모든 배치 워커(HOT Score, Lifecycle, Purge, ViewCount) 기동 완료")
 
 	// Graceful Shutdown 대기
 	quit := make(chan os.Signal, 1)
@@ -313,3 +315,88 @@ func runPurgePipeline(ctx context.Context, pool *pgxpool.Pool, rdbClient *rdb.Cl
 		log.Printf("🗑️ [Purge] 게시물 %s 및 관련 데이터 완전 영구 파기 완료", postID)
 	}
 }
+
+// ──────────────────────────────────────────────────────────────
+// 4. ViewCount Write-Back Worker (30초 주기)
+// Redis 실시간 조회수 카운트를 DB posts 테이블에 반영하고 캐시 차감
+// ──────────────────────────────────────────────────────────────
+func startViewCountWorker(ctx context.Context, pool *pgxpool.Pool, rdbClient *rdb.Client) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runViewCountFlush(ctx, pool, rdbClient)
+		}
+	}
+}
+
+func runViewCountFlush(ctx context.Context, pool *pgxpool.Pool, rdbClient *rdb.Client) {
+	// post:*:view_count 패턴으로 실시간 조회수 키 스캔
+	var cursor uint64
+	var keys []string
+	for {
+		var batch []string
+		var scanErr error
+		batch, cursor, scanErr = rdbClient.Scan(ctx, cursor, "post:*:view_count", 100).Result()
+		if scanErr != nil {
+			log.Printf("⚠️ [ViewCount] Redis SCAN 실패: %v", scanErr)
+			return
+		}
+		keys = append(keys, batch...)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	if len(keys) == 0 {
+		return
+	}
+
+	log.Printf("⏳ [ViewCount] %d개의 조회수 캐시 키 동기화 시작...", len(keys))
+	for _, key := range keys {
+		// postID 추출
+		// key format: post:{post_id}:view_count
+		var postID string
+		_, err := fmt.Sscanf(key, "post:%s:view_count", &postID)
+		if err != nil {
+			// Sscanf 매칭이 살짝 꼬일 경우 파싱 수동 처리
+			parts := rdbClient.ClientID(ctx) // 임시
+			_ = parts
+			continue
+		}
+		// 수동 문자열 슬라이싱으로 안전한 postID 파싱 (포스트 ID는 UUID 고정이므로 36자)
+		if len(key) >= 42 {
+			postID = key[5 : 5+36]
+		} else {
+			continue
+		}
+
+		redisViews, err := rdbClient.Get(ctx, key).Int64()
+		if err != nil || redisViews <= 0 {
+			continue
+		}
+
+		// DB 업데이트
+		_, err = pool.Exec(ctx, `
+			UPDATE posts 
+			SET view_count = view_count + $1 
+			WHERE id = $2
+		`, redisViews, postID)
+		if err != nil {
+			log.Printf("⚠️ [ViewCount] DB 업데이트 실패 (PostID: %s): %v", postID, err)
+			continue
+		}
+
+		// DB 저장 완료 후, Redis의 해당 값 차감 (차감 도중 추가 유입된 조회수가 유실되지 않도록 DECRBY 처리)
+		_, err = rdbClient.DecrBy(ctx, key, redisViews).Result()
+		if err != nil {
+			log.Printf("⚠️ [ViewCount] Redis 차감 실패 (Key: %s): %v", key, err)
+		}
+	}
+	log.Printf("✅ [ViewCount] 조회수 캐시 동기화 완료")
+}
+
