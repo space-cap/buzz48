@@ -190,9 +190,12 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 
 		ws.current.send(JSON.stringify({
 			type: 'toggle_reaction',
-			payload: { emoji }
+			payload: {
+				message_id: postID,
+				emoji
+			}
 		}));
-	}, [postState, sessionID]);
+	}, [postState, sessionID, postID]);
 
 	return {
 		messages,
