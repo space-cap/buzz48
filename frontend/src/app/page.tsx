@@ -6,6 +6,43 @@ import { getPostsAPI, getHotPostsAPI, PostItem, HotPostItem } from '../lib/api';
 import TimerText from '../components/TimerText';
 import CreatePostModal from '../components/CreatePostModal';
 
+// ────────────────────────────────────────────────────────
+// 미니멀 SVG 아이콘 컴포넌트 (AI 이모지 대체)
+// ────────────────────────────────────────────────────────
+const FlameIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
+	</svg>
+);
+
+const EyeIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+		<circle cx="12" cy="12" r="3"></circle>
+	</svg>
+);
+
+const SearchIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<circle cx="11" cy="11" r="8"></circle>
+		<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+	</svg>
+);
+
+const PenIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<path d="M12 20h9"></path>
+		<path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+	</svg>
+);
+
+const TrendingIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+		<polyline points="17 6 23 6 23 12"></polyline>
+	</svg>
+);
+
 export default function Home() {
 	// 상태 관리
 	const [activeCategory, setActiveCategory] = useState('전체');
@@ -144,7 +181,10 @@ export default function Home() {
 			   1. 실시간 HOT 3 하이라이트 보드
 			   ──────────────────────────────────────────────────────── */}
 			<section style={styles.hotSection}>
-				<h2 style={styles.sectionTitle}>🔥 실시간 HOT 3 (10초마다 갱신)</h2>
+				<h2 style={styles.sectionTitle}>
+					<TrendingIcon style={{ marginRight: '6px', color: 'var(--accent)' }} />
+					실시간 HOT 3 (10초마다 갱신)
+				</h2>
 				{hotPosts.length === 0 ? (
 					<div style={styles.emptyHot}>인기글을 집계하고 있습니다. 잠시만 대기해 주세요.</div>
 				) : (
@@ -167,8 +207,8 @@ export default function Home() {
 									
 									<div style={styles.hotFooter}>
 										<div style={styles.hotMeta}>
-											<span>👀 {post.conn_count}명 접속 중</span>
-											<span>🔥 Score: {post.score.toFixed(1)}</span>
+											<span><EyeIcon style={{ marginRight: '4px' }} /> {post.conn_count}명 접속 중</span>
+											<span><FlameIcon style={{ marginRight: '4px' }} /> Score: {post.score.toFixed(1)}</span>
 										</div>
 									</div>
 								</div>
@@ -209,7 +249,7 @@ export default function Home() {
 							borderColor: isSearchFocused ? 'var(--primary)' : 'var(--border-color)'
 						}}
 					>
-						<span style={styles.searchIcon}>🔍</span>
+						<SearchIcon size={15} style={styles.searchIcon} />
 						<input
 							type="text"
 							value={searchKeyword}
@@ -231,7 +271,8 @@ export default function Home() {
 						onClick={() => setIsWriteModalOpen(true)}
 						style={styles.headerWriteBtn}
 					>
-						✍️ 새 글 쓰기
+						<PenIcon size={14} style={{ marginRight: '6px' }} />
+						새 글 쓰기
 					</button>
 				</div>
 
@@ -272,12 +313,14 @@ export default function Home() {
 
 										{/* 참여자 수 */}
 										<span style={styles.rowConn}>
-											👀 {post.conn_count}
+											<EyeIcon size={13} style={{ marginRight: '3px', color: 'var(--text-muted)' }} />
+											{post.conn_count}
 										</span>
 
 										{/* 조회수 */}
 										<span style={styles.rowViews}>
-											🔥 {post.view_count}
+											<FlameIcon size={13} style={{ marginRight: '3px', color: 'var(--text-muted)' }} />
+											{post.view_count}
 										</span>
 
 										{/* 남은 시간 타이머 */}

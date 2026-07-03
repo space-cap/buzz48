@@ -7,6 +7,49 @@ import { getPostDetailAPI } from '../../../lib/api';
 import TimerText from '../../../components/TimerText';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 
+// ────────────────────────────────────────────────────────
+// 미니멀 SVG 아이콘 컴포넌트 (AI 이모지 대체)
+// ────────────────────────────────────────────────────────
+const FlameIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path>
+	</svg>
+);
+
+const EyeIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+		<circle cx="12" cy="12" r="3"></circle>
+	</svg>
+);
+
+const UserIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+		<circle cx="12" cy="7" r="4"></circle>
+	</svg>
+);
+
+const MessageIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+	</svg>
+);
+
+const BookIcon = ({ size = 14, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+		<path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+	</svg>
+);
+
+const ReplyIcon = ({ size = 12, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px', ...style }}>
+		<polyline points="9 10 4 15 9 20"></polyline>
+		<path d="M20 4v7a4 4 0 0 1-4 4H4"></path>
+	</svg>
+);
+
 interface Message {
 	message_id: string;
 	sender_nickname: string;
@@ -147,13 +190,15 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 					onClick={() => setMobileTab('post')} 
 					style={{ ...styles.mobileTabBtn, borderBottom: mobileTab === 'post' ? '3px solid var(--primary)' : 'none' }}
 				>
-					📄 원글 보기
+					<BookIcon style={{ marginRight: '6px' }} />
+					원글 보기
 				</button>
 				<button 
 					onClick={() => setMobileTab('chat')} 
 					style={{ ...styles.mobileTabBtn, borderBottom: mobileTab === 'chat' ? '3px solid var(--primary)' : 'none' }}
 				>
-					💬 실시간 댓글 (👀 {connCount}명)
+					<MessageIcon style={{ marginRight: '6px' }} />
+					실시간 댓글 (<EyeIcon size={12} style={{ marginRight: '2px' }} /> {connCount}명)
 				</button>
 			</div>
 
@@ -195,8 +240,8 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 
 						<h1 style={styles.postTitle}>{post.title}</h1>
 						<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-							<span>작성자: 👤 {post.creator_nickname || '익명 세션 유저'}</span>
-							<span>🔥 조회 {post.view_count ?? 0}</span>
+							<span>작성자: <UserIcon style={{ marginRight: '4px' }} /> {post.creator_nickname || '익명 세션 유저'}</span>
+							<span><FlameIcon style={{ marginRight: '4px' }} /> 조회 {post.view_count ?? 0}</span>
 						</div>
 
 						<hr style={styles.divider} />
@@ -228,15 +273,21 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 				}}>
 					{/* 채팅 상단 메타 바 */}
 					<div style={styles.chatHeader}>
-						<span style={styles.chatTitle}>💬 실시간 댓글</span>
+						<span style={styles.chatTitle}>
+							<MessageIcon style={{ marginRight: '6px' }} />
+							실시간 댓글
+						</span>
 						<div style={styles.chatMetaZone}>
-							<span style={styles.activeUsers}>👀 {connCount}명 참여 중</span>
+							<span style={styles.activeUsers}>
+								<EyeIcon size={12} style={{ marginRight: '4px' }} />
+								{connCount}명 참여 중
+							</span>
 							<span style={{ 
 								...styles.stateBadge,
 								backgroundColor: postState === 'LIVE' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
 								color: postState === 'LIVE' ? 'var(--green)' : 'var(--text-muted)'
 							}}>
-								{postState === 'LIVE' ? '🟢 LIVE' : '🟡 READ ONLY'}
+								{postState === 'LIVE' ? 'LIVE' : 'READ ONLY'}
 							</span>
 						</div>
 					</div>
@@ -252,7 +303,8 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 								<div key={msg.message_id} style={styles.chatBubbleRow}>
 									{msg.parent_id && (
 										<div style={styles.replyContext}>
-											↩️ {msg.parent_sender_nickname} 님의 말에 답글:
+											<ReplyIcon style={{ color: 'var(--primary)' }} />
+											{msg.parent_sender_nickname} 님의 말에 답글:
 										</div>
 									)}
 									
@@ -296,7 +348,10 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 					{/* 답글 대상 캔슬 배너 */}
 					{replyTarget && (
 						<div style={styles.replyBanner}>
-							<span>↩️ <b>{replyTarget.sender_nickname}</b> 님에게 답글 작성 중...</span>
+							<span>
+								<ReplyIcon style={{ color: 'var(--primary)' }} />
+								<b>{replyTarget.sender_nickname}</b> 님에게 답글 작성 중...
+							</span>
 							<button onClick={() => setReplyTarget(null)} style={styles.replyCancelBtn}>&times;</button>
 						</div>
 					)}
