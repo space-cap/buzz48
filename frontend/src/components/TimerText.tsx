@@ -8,6 +8,14 @@ interface TimerTextProps {
 	onExpire?: () => void;
 }
 
+// 미니멀 SVG 시계 아이콘 (AI 이모지 대체)
+const ClockIcon = ({ size = 13, style }: { size?: number; style?: React.CSSProperties }) => (
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+		<circle cx="12" cy="12" r="10"></circle>
+		<polyline points="12 6 12 12 16 14"></polyline>
+	</svg>
+);
+
 export default function TimerText({ initialSeconds, state, onExpire }: TimerTextProps) {
 	const [seconds, setSeconds] = useState(initialSeconds);
 
@@ -44,10 +52,7 @@ export default function TimerText({ initialSeconds, state, onExpire }: TimerText
 		return `${hh}:${mm}:${ss}`;
 	};
 
-	// 1시간(3600초) 미만인지 감지
 	const isUrgent = seconds < 3600;
-
-	// 배지 및 상태별 스타일 분기
 	const badgeColor = state === 'LIVE' ? 'var(--green)' : 'var(--text-muted)';
 	const timerColor = isUrgent ? 'var(--accent)' : 'var(--text-main)';
 
@@ -58,8 +63,7 @@ export default function TimerText({ initialSeconds, state, onExpire }: TimerText
 				<span style={{
 					...styles.pulseDot,
 					backgroundColor: badgeColor,
-					boxShadow: state === 'LIVE' ? '0 0 8px var(--green)' : 'none',
-					animation: state === 'LIVE' ? 'pulse 2s infinite' : 'none',
+					boxShadow: state === 'LIVE' ? '0 0 6px var(--green)' : 'none',
 				}} />
 				<span style={{ ...styles.badgeText, color: badgeColor }}>
 					{state}
@@ -68,7 +72,8 @@ export default function TimerText({ initialSeconds, state, onExpire }: TimerText
 
 			{/* 실시간 타이머 */}
 			<span style={{ ...styles.timer, color: timerColor }}>
-				⏱️ {formatTime(seconds)}
+				<ClockIcon size={12} style={{ marginRight: '4px', color: timerColor }} />
+				{formatTime(seconds)}
 			</span>
 		</div>
 	);
@@ -78,27 +83,36 @@ const styles = {
 	container: {
 		display: 'flex',
 		alignItems: 'center',
-		gap: '12px',
-		fontSize: '0.85rem',
-		fontWeight: 600,
+		justifyContent: 'flex-end', // 테이블 우측 정렬선과 완벽 결합되도록 끝으로 밀착
+		gap: '10px',
+		fontSize: '0.8rem',
+		fontWeight: 700,
+		width: '100%',
+		lineHeight: 1,
 	},
 	badgeZone: {
 		display: 'inline-flex',
 		alignItems: 'center',
-		gap: '6px',
+		gap: '5px',
+		lineHeight: 1,
 	},
 	pulseDot: {
-		width: '6px',
-		height: '6px',
+		width: '5px',
+		height: '5px',
 		borderRadius: '50%',
 		display: 'inline-block',
 	},
 	badgeText: {
 		letterSpacing: '0.5px',
-		fontSize: '0.75rem',
+		fontSize: '0.72rem',
+		fontWeight: 800,
+		lineHeight: 1,
 	},
 	timer: {
 		fontFamily: "'Outfit', sans-serif",
 		letterSpacing: '0.2px',
+		display: 'inline-flex',
+		alignItems: 'center',
+		lineHeight: 1,
 	},
 };
