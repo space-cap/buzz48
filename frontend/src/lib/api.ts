@@ -139,3 +139,20 @@ export async function getMySessionAPI(): Promise<SessionInfo> {
 	}
 	return res.json();
 }
+
+// 8. READ 상태 게시글의 과거 아카이브 메시지 조회
+export async function getPostMessagesAPI(
+	postID: string,
+	cursor?: string,
+	limit?: number
+): Promise<{ messages: any[]; next_cursor: string | null }> {
+	const query = new URLSearchParams();
+	if (cursor) query.append("cursor", cursor);
+	if (limit) query.append("limit", limit.toString());
+
+	const res = await fetch(`${API_BASE}/posts/${postID}/messages?${query.toString()}`);
+	if (!res.ok) {
+		throw new Error("과거 대화 조회 실패");
+	}
+	return res.json();
+}

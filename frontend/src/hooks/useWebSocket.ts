@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { getPostMessagesAPI } from '../lib/api';
 
 interface Message {
 	message_id: string;
@@ -89,7 +90,15 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 							setPostState(payload.state);
 							setConnCount(payload.conn_count);
 							if (payload.recent_messages && messages.length === 0) {
-								setMessages(payload.recent_messages);
+								const normalized = payload.recent_messages.map((m: any) => ({
+									message_id: m.id || m.message_id,
+									sender_nickname: m.sender_nickname,
+									content: m.content,
+									parent_id: m.reply_to_id || m.parent_id,
+									parent_sender_nickname: m.parent_sender_nickname || '',
+									created_at: m.created_at
+								}));
+								setMessages(normalized);
 							}
 							if (payload.reactions) {
 								const rxMap: Record<string, number> = { '👍': 0, '❤️': 0, '😂': 0, '😡': 0 };
@@ -167,6 +176,30 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 			}
 		};
 	}, [connect]);
+
+	// READ 상태일 때 과거 메시지 목록 아카이브 HTTP 조회 연동
+	useEffect(() => {
+		if (postState === 'READ') {
+			const fetchArchive = async () => {
+				try {
+					const data = await getPostMessagesAPI(postID);
+					const normalized = data.messages.map((m: any) => ({
+						message_id: m.message_id,
+						sender_nickname: m.sender_nickname,
+						content: m.content,
+						parent_id: m.reply_to,
+						parent_sender_nickname: '',
+						created_at: m.created_at
+					}));
+					// 오래된 메시지가 위로 오게 배열 정렬
+					setMessages(normalized.reverse());
+				} catch (err) {
+					console.error('과거 대화 아카이브 조회 실패:', err);
+				}
+			};
+			fetchArchive();
+		}
+	}, [postID, postState]);
 
 	// 메시지 전송 트리거
 	const sendMessage = useCallback((content: string, parentID?: string) => {
