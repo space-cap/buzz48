@@ -1,22 +1,22 @@
-# 오라클 클라우드(OCI) 배포 가이드
+# 오라클 클라우드(OCI) 배포 가이드 (Cloudflare Tunnel 기반)
 
-본 문서는 소유하신 도메인 `buzz48.pl3.kr`과 Cloudflare DNS, 그리고 오라클 클라우드(OCI) VM 인스턴스(`140.245.64.172`)를 활용하여 Buzz48 서비스의 백엔드, 프론트엔드, Redis, WebSocket을 실서비스 환경에 배포하는 종합 안내서입니다.
+본 문서는 소유하신 도메인 `buzz48.pl3.kr`과 Cloudflare DNS, 그리고 오라클 클라우드(OCI) VM 인스턴스(`140.245.64.172`)를 활용하여 **Cloudflare Tunnel (Zero Trust)** 기술로 배포하는 전용 안내서입니다.
 
 ---
 
-## 1. 실서비스 배포 아키텍처 개요
+## 1. Cloudflare Tunnel 배포 아키텍처 개요
 
-단일 도메인 `buzz48.pl3.kr` 아래에서 SSL(HTTPS/WSS) 인증서 및 CORS 이슈를 깔끔하게 해소하기 위해 **Nginx 리버스 프록시**를 전면에 배치합니다.
+**Cloudflare Tunnel** 방식을 도입하면 OCI 서버 전면에 무겁고 복잡한 Nginx를 설치할 필요가 전혀 없으며, OCI 인바운드 방화벽 포트(80, 443 등)를 **단 하나도 열지 않고 완전 폐쇄한 상태**에서도 세계 최고 수준의 HTTPS/WSS 보안 연결을 구현할 수 있습니다.
 
 ```mermaid
 graph TD
-    User([유저 브라우저]) -->|HTTPS / WSS| CF[Cloudflare CDN]
-    CF -->|Port 443| Nginx[Nginx 리버스 프록시]
+    User([유저 브라우저]) -->|HTTPS / WSS| CF[Cloudflare Edge]
+    CF -.->|안전한 암호화 터널| CFT[cloudflared 데몬]
     
     subgraph OCI Compute Instance (140.245.64.172)
-        Nginx -->|/ | NextJS[Next.js 프론트엔드 :3001]
-        Nginx -->|/v1/*| GoAPI[Go API 서버 :8082]
-        Nginx -->|/ws| GoWS[Go WebSocket 서버 :8081]
+        CFT -->|http://localhost:3001| NextJS[Next.js 프론트엔드 :3001]
+        CFT -->|http://localhost:8082| GoAPI[Go API 서버 :8082]
+        CFT -->|http://localhost:8081| GoWS[Go WebSocket 서버 :8081]
         
         GoAPI <--> Redis[(Redis :6379)]
         GoWS <--> Redis
@@ -25,56 +25,23 @@ graph TD
     GoAPI <--> NeonDB[(Neon PostgreSQL Cloud)]
 ```
 
-- **데이터베이스**: 현재 사용 중인 Neon PostgreSQL Cloud DB를 그대로 연동하므로 OCI 내부에는 별도의 무거운 DB를 설치하지 않아 자원을 절약합니다.
-- **Redis**: OCI 로컬에 초경량 Redis 서버를 직접 구동하여 동접자 및 조회수 가드용 인메모리 저장소로 씁니다.
+* **보안성 극대화**: 퍼블릭 포트를 전부 닫아두기 때문에 포트 스캔이나 디도스(DDoS) 공격 시도가 OCI VM 서버 본진에 도달조차 하지 못합니다.
+* **인증서 관리 제로**: SSL/TLS 인증서 발급 및 주기적 갱신(Let's Encrypt 등)을 Cloudflare가 종단에서 자동 처리합니다.
 
 ---
 
-## 2. 사전 인프라 설정
+## 2. 사전 환경 설정
 
-### 2.1 Cloudflare DNS 설정
-1. Cloudflare 대시보드 ➡️ `pl3.kr` 도메인 관리 영역으로 이동합니다.
-2. **DNS 레코드**에 아래 설정을 추가합니다:
-   - **Type**: `A`
-   - **Name**: `buzz48` (즉, `buzz48.pl3.kr`)
-   - **IPv4 Address**: `140.245.64.172`
-   - **Proxy status**: `Proxied` (오렌지 구름 활성화 - Cloudflare SSL/TLS 암호화 혜택 및 IP 숨김 지원)
-3. **SSL/TLS 암호화 모드**:
-   - Cloudflare SSL/TLS 탭에서 암호화 모드를 `Full` (권장, Nginx에 자체 인증서 적용) 또는 `Flexible`로 지정합니다.
-
-### 2.2 오라클 클라우드(OCI) 방화벽 개방 (중요)
-오라클 클라우드는 기본적으로 모든 포트가 닫혀 있으므로 **OCI 대시보드**와 **인스턴스 내부 방화벽**을 모두 열어주어야 접속이 가능합니다.
-
-#### [Step 1] OCI Subnet 수신 규칙(Ingress Rules) 추가
-1. OCI 콘솔 ➡️ Compute ➡️ Instances ➡️ 본인 인스턴스 클릭.
-2. Primary VNIC 섹션의 **Virtual Cloud Network (VCN)** 링크 클릭 ➡️ **Security Lists** 클릭.
-3. 기본 보안 리스트(Default Security List)에 아래의 **수신 규칙(Ingress Rule)** 2개를 추가합니다:
-   - **소스 CIDR**: `0.0.0.0/0` (전체 개방)
-   - **IP 프로토콜**: `TCP`
-   - **대상 포트 범위**: `80` (HTTP)
-   - *두 번째 규칙 추가*:
-   - **소스 CIDR**: `0.0.0.0/0`
-   - **IP 프로토콜**: `TCP`
-   - **대상 포트 범위**: `443` (HTTPS)
-
-#### [Step 2] 인스턴스 Ubuntu OS 내 방화벽 개방
-SSH로 OCI 인스턴스에 접속한 뒤 아래 명령어로 포트를 개방하고 방화벽을 적용합니다:
-```bash
-# Ubuntu iptables 규칙 개방 (OCI 기본 방화벽 규칙 우회)
-sudo iptables -I INPUT 6 -p tcp --dport 80 -j ACCEPT
-sudo iptables -I INPUT 6 -p tcp --dport 443 -j ACCEPT
-
-# 영구 저장
-sudo netfilter-persistent save
-sudo netfilter-persistent reload
-```
+### 2.1 OCI 방화벽 정책 (수신 규칙 없음)
+- Cloudflare Tunnel은 OCI VM 내부에서 Cloudflare 서버로 **아웃바운드 터널**을 뚫어 나가는 원리입니다.
+- 따라서 **OCI Subnet Security List(보안 리스트) 수신 규칙에서 HTTP(80)나 HTTPS(443) 포트를 전혀 열지 않아도 됩니다.** (기본 상태 그대로 전체 차단 유지 권장)
 
 ---
 
 ## 3. 서버 내부 환경 설정 및 패키지 설치
 
-### 3.1 필요 도구 설치 (Git, Go, Node.js, Redis, Nginx)
-SSH 접속 상태에서 아래 커맨드를 순서대로 실행합니다:
+### 3.1 필요 도구 설치 (Git, Go, Node.js, Redis)
+SSH 접속 상태에서 아래 커맨드를 실행하여 컴파일 및 캐시 도구를 설치합니다:
 ```bash
 sudo apt update && sudo apt upgrade -y
 
@@ -83,24 +50,19 @@ sudo apt install redis-server -y
 sudo systemctl enable redis-server
 sudo systemctl start redis-server
 
-# 2. Nginx 설치 및 활성화
-sudo apt install nginx -y
-sudo systemctl enable nginx
-sudo systemctl start nginx
-
-# 3. Node.js & npm 설치 (Next.js 빌드 및 구동용)
+# 2. Node.js & npm 설치 (Next.js 빌드 및 구동용)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# 4. Go 설치 (백엔드 컴파일용)
+# 3. Go 설치 (백엔드 컴파일용)
 sudo snap install go --classic
 ```
 
 ---
 
-## 4. 빌드 및 배포 자동화 프로세스
+## 4. 빌드 및 배포 프로세스
 
-### 4.1 프로젝트 클론 및 환경변수(`.env`) 설정
+### 4.1 프로젝트 클론 및 환경변수(`.env`) 구성
 서버 내 적절한 경로(예: `/var/www/buzz48`)에 프로젝트를 내려받고 `.env` 파일을 구성합니다.
 
 ```bash
@@ -154,7 +116,7 @@ npm run build
 
 ## 5. 프로세스 상시 구동 설정 (Systemd Service)
 
-서버가 재부팅되거나 에러로 프로세스가 죽었을 때 자동으로 되살아나도록 백엔드 서버(API, WS, Worker)와 프론트엔드를 **systemd 서비스**로 등록합니다.
+서버 재부팅 시 자동으로 백엔드 및 프론트엔드 서버가 켜지도록 **systemd 서비스**로 등록합니다.
 
 ### 5.1 Go API 서버 등록 (`/etc/systemd/system/buzz-api.service`)
 ```ini
@@ -238,80 +200,49 @@ sudo systemctl enable --now buzz-worker
 sudo systemctl enable --now buzz-frontend
 ```
 
-## 6. Nginx 리버스 프록시 및 Cloudflare SSL 연동
+---
 
-Cloudflare가 앞단에서 SSL 암호화(HTTPS 및 WSS)를 완벽하게 대행해 주기 때문에, OCI 인스턴스 서버에 복잡한 `certbot` 패키지 설치나 Let's Encrypt 인증서 90일 만료 갱신 스케줄을 수립할 필요가 전혀 없습니다.
+## 6. Cloudflare Tunnel(Zero Trust) 연동 및 구동
 
-Nginx는 단순 **80포트(HTTP)**로만 수신하고 내부 포트로 분기 포워딩을 수행합니다.
+Cloudflare Zero Trust 웹 관리자 화면에서 클릭 몇 번으로 터널을 구성하고 라우팅 설정을 완료합니다.
 
-### 6.1 Nginx 설정 구성 (`/etc/nginx/sites-available/buzz48`)
-기본 설정을 지우고 아래의 80포트 단일 리스너 설정을 적용합니다:
+### 6.1 Cloudflare 대시보드 내 터널 생성
+1. **Cloudflare Zero Trust 대시보드**([https://one.dash.cloudflare.com/](https://one.dash.cloudflare.com/))에 접속합니다.
+2. 좌측 메뉴 ➡️ **Networks** ➡️ **Tunnels**를 선택하고, **Add a tunnel**을 클릭합니다.
+3. 터널 이름(예: `buzz48-tunnel`)을 입력한 뒤 **Save tunnel**을 누릅니다.
+4. OCI OS 환경인 **`Debian / Ubuntu` (64-bit)** 탭을 선택합니다.
+5. 화면에 노출되는 설치 스크립트 커맨드(예: `curl -L ...` 및 `sudo cloudflared service install ...`)를 **전체 복사**하여 OCI VM 터미널에 붙여넣고 실행합니다.
+   - *팁: 터미널에 성공적으로 명령어가 기동되면 대시보드 하단에 Status가 `ACTIVE` 로 실시간 감지되어 녹색 불이 켜집니다.*
 
-```nginx
-server {
-    listen 80;
-    server_name buzz48.pl3.kr;
+### 6.2 도메인 및 하위 경로(Subpath) 라우팅 설정
+터널 상세 설정 화면 우측 상단의 **Public Hostname** 탭을 눌러 아래 3개의 라우팅 규칙을 순서대로 추가(`Add a public hostname`)합니다.
 
-    # 1. Next.js 프론트엔드 프록시 (포트 3001)
-    location / {
-        proxy_pass http://127.0.0.1:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
+#### 규칙 1: Next.js 프론트엔드 연동
+- **Subdomain**: `buzz48`
+- **Domain**: `pl3.kr` (즉, `buzz48.pl3.kr`)
+- **Path**: *(비워둠)*
+- **Service Type**: `HTTP`
+- **URL**: `localhost:3001`
 
-    # 2. Go API 프록시 (포트 8082)
-    location /v1/ {
-        proxy_pass http://127.0.0.1:8082;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+#### 규칙 2: Go API 서버 연동
+- **Subdomain**: `buzz48`
+- **Domain**: `pl3.kr`
+- **Path**: `v1`  *(반드시 `/` 없이 `v1` 입력)*
+- **Service Type**: `HTTP`
+- **URL**: `localhost:8082`
 
-    # 3. Go WebSocket 프록시 (포트 8081)
-    # Cloudflare 프록시를 경유해 WSS(Secure WebSockets)로 자동 암호화 통신합니다.
-    location /ws {
-        proxy_pass http://127.0.0.1:8081;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
-    }
-}
-```
-
-```bash
-# 설정 활성화 및 Nginx 재시작
-sudo ln -s /etc/nginx/sites-available/buzz48 /etc/nginx/sites-enabled/
-sudo rm -s /etc/nginx/sites-enabled/default  # 기존 기본 디폴트 설정 삭제
-sudo nginx -t
-sudo systemctl restart nginx
-```
+#### 규칙 3: Go WebSocket 서버 연동
+- **Subdomain**: `buzz48`
+- **Domain**: `pl3.kr`
+- **Path**: `ws`  *(반드시 `ws` 입력)*
+- **Service Type**: `HTTP`  *(Cloudflare Tunnel은 내부적으로 ws/wss 업그레이드 프로토콜을 HTTP 타입을 통해 자동 지원합니다)*
+- **URL**: `localhost:8081`
 
 ---
 
-## 7. Cloudflare SSL/TLS 모드별 대칭 설정
+## 7. 가동 검증 및 동작 확인
 
-Nginx 설정 구동 후 Cloudflare 대시보드 ➡️ **SSL/TLS** ➡️ **Overview** 메뉴로 이동하여 원하는 암호화 방식을 결정합니다.
+모든 설정이 끝나면 브라우저 주소창에 **[https://buzz48.pl3.kr](https://buzz48.pl3.kr)** 을 입력하여 접속합니다.
 
-### 7.1 옵션 A: Flexible SSL (최소 설정 배포)
-- **개념**: `유저 ⬅️(HTTPS)➡️ Cloudflare ⬅️(HTTP)➡️ Nginx (Port 80)`
-- **특징**: 가장 설정이 간단합니다. OCI 서버 측에는 그 어떠한 SSL 인증서 파일을 둘 필요가 없으며, Nginx의 80포트 설정만으로도 브라우저에는 자물쇠 마크(HTTPS)가 안전하게 표시됩니다.
-- **조치**: Cloudflare SSL/TLS 설정을 `Flexible`로 체크만 해두면 작업이 끝납니다.
-
-### 7.2 옵션 B: Full / Full (Strict) SSL (종단간 암호화 보안 강화)
-- **개념**: `유저 ⬅️(HTTPS)➡️ Cloudflare ⬅️(HTTPS)➡️ Nginx (Port 443)`
-- **특징**: Cloudflare와 OCI 서버 간의 구간 통신까지 완벽하게 암호화하고 싶을 때 선택합니다.
-- **조치**:
-  1. Cloudflare 대시보드 ➡️ SSL/TLS ➡️ **Origin Server**로 이동하여 **Create Certificate**를 클릭합니다. (기본 15년 기한 무료 Origin 인증서 발급 지원)
-  2. 개인키(`origin.key`)와 인증서(`origin.pem`) 파일 텍스트를 다운받아 OCI 서버의 `/etc/ssl/` 디렉토리에 저장합니다.
-  3. OCI 방화벽에서 `443` 포트를 연 뒤, Nginx 설정을 `listen 443 ssl`로 확장하고 인증서 경로를 추가 매핑해 줍니다.
-
+* Cloudflare 엣지 브라우저단에서 HTTPS가 완전 관리되고 있으므로 별도의 SSL 경고창 없이 완벽한 자물쇠 표시가 나타납니다.
+* 실시간 채팅 및 조회수가 문제없이 연동되어 움직이면 정상적으로 배포 배치가 종결된 것입니다.
