@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -63,9 +62,6 @@ func (d *Deps) CreatePost(c *fiber.Ctx) error {
 		}
 	}
 
-	// image_urls JSON 직렬화
-	imageURLsJSON, _ := json.Marshal(req.ImageURLs)
-
 	// DB 삽입
 	postID := uuid.New()
 	now := time.Now().UTC()
@@ -74,7 +70,7 @@ func (d *Deps) CreatePost(c *fiber.Ctx) error {
 		 (id, creator_session_id, title, content, category, image_urls, created_at, idempotency_key)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		postID, sessionID, req.Title, req.Content, req.Category,
-		imageURLsJSON, now, nullableString(req.IdempotencyKey),
+		req.ImageURLs, now, nullableString(req.IdempotencyKey),
 	)
 	if err != nil {
 		// Rate Limit 카운트 롤백 (생성 실패 시)

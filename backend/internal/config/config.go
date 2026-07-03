@@ -31,6 +31,7 @@ type Config struct {
 // .env 파일이 없으면 OS 환경변수만 사용합니다.
 func Load() (*Config, error) {
 	// 루트의 .env 파일 로드 (없어도 에러 아님)
+	_ = godotenv.Load("../../../.env")
 	_ = godotenv.Load("../../.env")
 	_ = godotenv.Load("../.env")
 	_ = godotenv.Load(".env")

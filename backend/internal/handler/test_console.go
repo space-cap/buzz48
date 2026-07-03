@@ -220,7 +220,6 @@ const testConsoleHTML = `
             box-shadow: 0 0 8px var(--green);
         }
 
-        /* 채팅 UI 미니 버전 */
         .chat-container {
             display: flex;
             flex-direction: column;
@@ -267,32 +266,6 @@ const testConsoleHTML = `
             margin-bottom: 4px;
             font-weight: 600;
         }
-
-        .chat-bubble .time {
-            font-size: 0.65rem;
-            color: rgba(255,255,255,0.4);
-            margin-top: 4px;
-            text-align: right;
-        }
-
-        .chat-input-zone {
-            display: flex;
-            border-top: 1px solid var(--border-color);
-            background: rgba(0,0,0,0.4);
-        }
-
-        .chat-input-zone input {
-            flex: 1;
-            border: none;
-            background: transparent;
-            border-radius: 0;
-            padding: 14px;
-        }
-
-        .chat-input-zone button {
-            border-radius: 0;
-            padding: 0 24px;
-        }
     </style>
 </head>
 <body>
@@ -303,9 +276,7 @@ const testConsoleHTML = `
         </header>
 
         <div class="grid">
-            <!-- 왼쪽 컬럼: REST API 테스트 -->
             <div>
-                <!-- 세션 카드 -->
                 <div class="card">
                     <h2><span class="badge">Session</span> 1. 익명 세션 및 프로필</h2>
                     <div class="form-group">
@@ -322,7 +293,6 @@ const testConsoleHTML = `
                     </div>
                 </div>
 
-                <!-- 게시물 생성/목록 카드 -->
                 <div class="card">
                     <h2><span class="badge">Post</span> 2. 게시글 작성 & 조회</h2>
                     <div class="form-group">
@@ -349,7 +319,6 @@ const testConsoleHTML = `
                     </div>
                 </div>
 
-                <!-- API 결과 로그 콘솔 -->
                 <div class="card">
                     <div class="console-header">
                         <h2>API Response Log</h2>
@@ -359,7 +328,6 @@ const testConsoleHTML = `
                 </div>
             </div>
 
-            <!-- 오른쪽 컬럼: WebSocket 실시간 채팅 테스트 -->
             <div>
                 <div class="card">
                     <h2>
@@ -378,7 +346,6 @@ const testConsoleHTML = `
                         <button class="secondary" onclick="sendSync()">과거메시지 복구 (sync)</button>
                     </div>
 
-                    <!-- 채팅 타임라인 -->
                     <div class="chat-container">
                         <div class="chat-messages" id="chat-box">
                             <div class="chat-bubble other">
@@ -393,7 +360,6 @@ const testConsoleHTML = `
                     </div>
                 </div>
 
-                <!-- 현재 게시물 상세 정보 락커 -->
                 <div class="card" id="post-meta-card" style="display:none;">
                     <h2>게시물 메타 정보 (실시간 수신)</h2>
                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9rem;">
@@ -407,29 +373,27 @@ const testConsoleHTML = `
     </div>
 
     <script>
-        const API_URL = "http://localhost:8080/v1";
-        const WS_URL = "ws://localhost:8081/v1";
+        const API_URL = window.location.origin + "/v1";
+        const WS_URL = "ws://" + window.location.hostname + ":8083/v1";
         
         let wsConn = null;
         let activeSessionID = "";
         let activeNickname = "";
         let currentPostID = "";
 
-        // 콘솔 출력 헬퍼
         function log(title, obj) {
             const consoleEl = document.getElementById("log-console");
             const time = new Date().toLocaleTimeString();
-            consoleEl.innerHTML = `[${time}] ${title}\n` + JSON.stringify(obj, null, 2) + "\n\n" + consoleEl.innerHTML;
+            consoleEl.innerHTML = "[" + time + "] " + title + "\n" + JSON.stringify(obj, null, 2) + "\n\n" + consoleEl.innerHTML;
         }
 
         function clearConsole() {
             document.getElementById("log-console").innerHTML = "";
         }
 
-        // 1. 세션 생성
         async function createSession() {
             try {
-                const res = await fetch(`${API_URL}/sessions`, { method: "POST" });
+                const res = await fetch(API_URL + "/sessions", { method: "POST" });
                 const data = await res.json();
                 activeSessionID = data.session_id;
                 activeNickname = data.nickname;
@@ -442,17 +406,16 @@ const testConsoleHTML = `
             }
         }
 
-        // 2. 닉네임 변경
         async function patchNickname() {
             const newNick = prompt("변경할 닉네임을 입력하세요:");
             if (!newNick) return;
 
             try {
-                const res = await fetch(`${API_URL}/sessions/me/nickname`, {
+                const res = await fetch(API_URL + "/sessions/me/nickname", {
                     method: "PATCH",
                     headers: { 
                         "Content-Type": "application/json",
-                        "Authorization": `Bearer ${activeSessionID}`
+                        "Authorization": "Bearer " + activeSessionID
                     },
                     body: JSON.stringify({ nickname: newNick })
                 });
@@ -467,23 +430,22 @@ const testConsoleHTML = `
             }
         }
 
-        // 3. 게시글 생성
         async function createPost() {
             const title = document.getElementById("post-title").value;
             const content = document.getElementById("post-content").value;
             const category = document.getElementById("post-category").value;
 
             try {
-                const res = await fetch(`${API_URL}/posts`, {
+                const res = await fetch(API_URL + "/posts", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "Authorization": `Bearer ${activeSessionID}`
+                        "Authorization": "Bearer " + activeSessionID
                     },
                     body: JSON.stringify({
-                        title,
-                        content,
-                        category,
+                        title: title,
+                        content: content,
+                        category: category,
                         image_urls: [],
                         idempotency_key: "idemp-" + Math.random()
                     })
@@ -500,10 +462,9 @@ const testConsoleHTML = `
             }
         }
 
-        // 4. 목록 조회
         async function listPosts() {
             try {
-                const res = await fetch(`${API_URL}/posts`);
+                const res = await fetch(API_URL + "/posts");
                 const data = await res.json();
                 log("GET /posts Success", data);
             } catch (err) {
@@ -511,10 +472,9 @@ const testConsoleHTML = `
             }
         }
 
-        // 5. HOT 상위 조회
         async function getHotPosts() {
             try {
-                const res = await fetch(`${API_URL}/posts/hot`);
+                const res = await fetch(API_URL + "/posts/hot");
                 const data = await res.json();
                 log("GET /posts/hot Success", data);
             } catch (err) {
@@ -522,7 +482,6 @@ const testConsoleHTML = `
             }
         }
 
-        // 6. WebSocket 연결 토글
         function toggleWS() {
             const postID = document.getElementById("target-post-id").value;
             if (!postID) {
@@ -539,7 +498,7 @@ const testConsoleHTML = `
                 return;
             }
 
-            const url = `${WS_URL}/posts/${postID}?token=${activeSessionID}`;
+            const url = WS_URL + "/ws/posts/" + postID + "?token=" + activeSessionID;
             wsConn = new WebSocket(url);
 
             const statusDot = document.getElementById("ws-status");
@@ -564,7 +523,6 @@ const testConsoleHTML = `
             };
         }
 
-        // 웹소켓 이벤트 분기 처리
         function handleWSEvent(evt) {
             console.log("WS Recv: ", evt);
             const chatBox = document.getElementById("chat-box");
@@ -576,7 +534,6 @@ const testConsoleHTML = `
                     document.getElementById("meta-conn").innerText = payload.conn_count;
                     document.getElementById("meta-timer").innerText = payload.remaining_seconds + "초";
                     
-                    // 스냅샷 메시지 추가
                     chatBox.innerHTML = "";
                     payload.recent_messages.forEach(msg => {
                         appendChatMessage(msg.sender_nickname, msg.content, msg.sender_nickname === activeNickname);
@@ -590,10 +547,10 @@ const testConsoleHTML = `
                     break;
                 case "post_state_changed":
                     document.getElementById("meta-state").innerText = evt.payload.state;
-                    appendChatMessage("System", `게시판 상태가 ${evt.payload.state}로 변경되었습니다.`, false);
+                    appendChatMessage("System", "게시판 상태가 " + evt.payload.state + "로 변경되었습니다.", false);
                     break;
                 case "reaction_updated":
-                    appendChatMessage("System", `[반응] 메시지 ${evt.payload.message_id.substring(0,6)}... 에 이모지 ${evt.payload.emoji}가 업데이트되었습니다. (${evt.payload.count}개)`, false);
+                    appendChatMessage("System", "[반응] 메시지 " + evt.payload.message_id.substring(0,6) + "... 에 이모지 " + evt.payload.emoji + "가 업데이트되었습니다. (" + evt.payload.count + "개)", false);
                     break;
                 case "sync_result":
                     evt.payload.missed_messages.forEach(msg => {
@@ -609,13 +566,12 @@ const testConsoleHTML = `
         function appendChatMessage(sender, text, isMe) {
             const chatBox = document.getElementById("chat-box");
             const div = document.createElement("div");
-            div.className = `chat-bubble ${isMe ? 'me' : 'other'}`;
-            div.innerHTML = `<div class="meta">${sender}</div><div>${text}</div>`;
+            div.className = "chat-bubble " + (isMe ? "me" : "other");
+            div.innerHTML = "<div class=\"meta\">" + sender + "</div><div>" + text + "</div>";
             chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // 실시간 채팅 전송
         function sendWSMessage() {
             const input = document.getElementById("chat-msg-input");
             const val = input.value.trim();
@@ -632,7 +588,6 @@ const testConsoleHTML = `
             input.value = "";
         }
 
-        // sync 메시지 복구 테스트
         function sendSync() {
             if (!wsConn) return;
             const lastKnown = prompt("마지막으로 수신했던 메시지 ID(UUID)를 입력하세요:");
