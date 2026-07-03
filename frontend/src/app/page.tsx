@@ -155,7 +155,7 @@ export default function Home() {
 				</div>
 
 				{/* ────────────────────────────────────────────────────────
-				   3. 게시글 리스트 피드
+				   3. 게시글 컴팩트 리스트
 				   ──────────────────────────────────────────────────────── */}
 				{posts.length === 0 ? (
 					<div style={styles.emptyFeed}>
@@ -163,23 +163,38 @@ export default function Home() {
 					</div>
 				) : (
 					<div style={styles.feedList}>
+						{/* 리스트 헤더 */}
+						<div style={styles.listHeader}>
+							<span style={styles.listHeaderCell}>분류</span>
+							<span style={{...styles.listHeaderCell, flex: 1}}>제목</span>
+							<span style={styles.listHeaderCell}>참여</span>
+							<span style={styles.listHeaderCell}>남은 시간</span>
+						</div>
+						{/* 리스트 로우 */}
 						{posts.map(post => (
 							<Link href={`/posts/${post.post_id}`} key={post.post_id} style={styles.cardLink}>
-								<div style={styles.postCard}>
-									<div style={styles.cardHeader}>
-										<span style={styles.cardCategory}>{post.category}</span>
-										{/* 개별 1초 타이머 탑재 */}
-										<TimerText 
-											initialSeconds={post.remaining_seconds} 
-											state={post.state} 
+								<div style={styles.listRow}>
+									{/* 분류 */}
+									<span style={styles.rowCategory}>{post.category}</span>
+
+									{/* 제목 + NEW 뱃지 */}
+									<span style={styles.rowTitle}>
+										{post.title}
+										{post.is_new && <span style={styles.newBadge}>N</span>}
+									</span>
+
+									{/* 참여자 수 */}
+									<span style={styles.rowConn}>
+										👀 {post.conn_count}
+									</span>
+
+									{/* 남은 시간 타이머 */}
+									<span style={styles.rowTimer}>
+										<TimerText
+											initialSeconds={post.remaining_seconds}
+											state={post.state}
 										/>
-									</div>
-									<h3 style={styles.cardTitle}>{post.title}</h3>
-									
-									<div style={styles.cardFooter}>
-										<span style={styles.cardConn}>👀 {post.conn_count}명 참여 중</span>
-										{post.is_new && <span style={styles.newBadge}>NEW</span>}
-									</div>
+									</span>
 								</div>
 							</Link>
 						))}
@@ -367,61 +382,106 @@ const styles = {
 	feedList: {
 		display: 'flex',
 		flexDirection: 'column' as const,
-		gap: '14px',
+		gap: '0',
+		background: 'var(--panel-bg)',
+		border: '1px solid var(--border-color)',
+		borderRadius: '14px',
+		overflow: 'hidden',
+		boxShadow: 'var(--shadow-sm)',
 	},
 	cardLink: {
 		textDecoration: 'none',
 		color: 'inherit',
+		display: 'block',
 	},
-	postCard: {
-		background: 'var(--panel-bg)',
-		border: '1px solid var(--border-color)',
-		borderRadius: '14px',
-		padding: '20px 24px',
+	// 리스트 헤더 행
+	listHeader: {
+		display: 'flex',
+		alignItems: 'center',
+		paddingTop: '10px',
+		paddingBottom: '10px',
+		paddingLeft: '20px',
+		paddingRight: '20px',
+		background: 'rgba(79, 70, 229, 0.04)',
+		borderBottom: '1px solid var(--border-color)',
+		gap: '12px',
+	},
+	listHeaderCell: {
+		fontSize: '0.72rem',
+		fontWeight: 700,
+		color: 'var(--text-muted)',
+		textTransform: 'uppercase' as const,
+		letterSpacing: '0.5px',
+		whiteSpace: 'nowrap' as const,
+	},
+	// 개별 리스트 로우
+	listRow: {
+		display: 'flex',
+		alignItems: 'center',
+		paddingTop: '13px',
+		paddingBottom: '13px',
+		paddingLeft: '20px',
+		paddingRight: '20px',
+		gap: '12px',
+		borderBottom: '1px solid var(--border-color)',
+		transition: 'background 0.15s',
 		cursor: 'pointer',
-		transition: 'transform 0.2s, box-shadow 0.2s',
-		boxShadow: 'var(--shadow-sm)',
 		'&:hover': {
-			transform: 'translateY(-2px)',
-			boxShadow: 'var(--shadow-md)',
+			background: 'rgba(79, 70, 229, 0.03)',
 		}
 	},
-	cardHeader: {
-		display: 'flex',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-		marginBottom: '8px',
-	},
-	cardCategory: {
-		fontSize: '0.8rem',
-		fontWeight: 600,
-		color: 'var(--primary)',
-	},
-	cardTitle: {
-		fontSize: '1.05rem',
+	rowCategory: {
+		flexShrink: 0,
+		width: '72px',
+		fontSize: '0.75rem',
 		fontWeight: 700,
-		color: 'var(--text-main)',
-		marginBottom: '10px',
-		lineHeight: 1.4,
+		color: 'white',
+		background: 'var(--primary)',
+		borderRadius: '6px',
+		padding: '2px 8px',
+		textAlign: 'center' as const,
+		whiteSpace: 'nowrap' as const,
+		overflow: 'hidden',
+		textOverflow: 'ellipsis',
 	},
-	cardFooter: {
+	rowTitle: {
+		flex: 1,
+		fontSize: '0.95rem',
+		fontWeight: 600,
+		color: 'var(--text-main)',
+		whiteSpace: 'nowrap' as const,
+		overflow: 'hidden',
+		textOverflow: 'ellipsis',
 		display: 'flex',
 		alignItems: 'center',
-		gap: '12px',
-		fontSize: '0.8rem',
-		color: 'var(--text-muted)',
+		gap: '6px',
 	},
-	cardConn: {
+	rowConn: {
+		flexShrink: 0,
+		width: '56px',
+		textAlign: 'right' as const,
+		fontSize: '0.8rem',
 		fontWeight: 600,
+		color: 'var(--text-muted)',
+		whiteSpace: 'nowrap' as const,
+	},
+	rowTimer: {
+		flexShrink: 0,
+		width: '88px',
+		textAlign: 'right' as const,
+		fontSize: '0.82rem',
+		fontFamily: "'Outfit', monospace",
+		fontWeight: 700,
 	},
 	newBadge: {
-		background: 'rgba(79, 70, 229, 0.1)',
+		background: 'rgba(79, 70, 229, 0.12)',
 		color: 'var(--primary)',
-		fontSize: '0.65rem',
-		fontWeight: 800,
-		padding: '2px 6px',
+		fontSize: '0.6rem',
+		fontWeight: 900,
+		padding: '1px 5px',
 		borderRadius: '4px',
 		letterSpacing: '0.5px',
+		flexShrink: 0,
 	},
 	loadMoreZone: {
 		display: 'flex',
