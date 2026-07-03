@@ -238,19 +238,21 @@ sudo systemctl enable --now buzz-worker
 sudo systemctl enable --now buzz-frontend
 ```
 
----
+## 6. Nginx 리버스 프록시 및 Cloudflare SSL 연동
 
-## 6. Nginx 리버스 프록시 및 SSL 연동
+Cloudflare가 앞단에서 SSL 암호화(HTTPS 및 WSS)를 완벽하게 대행해 주기 때문에, OCI 인스턴스 서버에 복잡한 `certbot` 패키지 설치나 Let's Encrypt 인증서 90일 만료 갱신 스케줄을 수립할 필요가 전혀 없습니다.
+
+Nginx는 단순 **80포트(HTTP)**로만 수신하고 내부 포트로 분기 포워딩을 수행합니다.
 
 ### 6.1 Nginx 설정 구성 (`/etc/nginx/sites-available/buzz48`)
-기본 설정을 날리고 아래 템플릿을 적용하여 HTTP(80) 요청을 3001포트(Next.js), `/v1/` 경로는 API서버, `/ws` 경로는 WebSocket 서버로 포워딩합니다.
+기본 설정을 지우고 아래의 80포트 단일 리스너 설정을 적용합니다:
 
 ```nginx
 server {
     listen 80;
     server_name buzz48.pl3.kr;
 
-    # Certbot SSL 적용 전 임시 설정
+    # 1. Next.js 프론트엔드 프록시 (포트 3001)
     location / {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
@@ -260,7 +262,7 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 
-    # Go API 프록시
+    # 2. Go API 프록시 (포트 8082)
     location /v1/ {
         proxy_pass http://127.0.0.1:8082;
         proxy_set_header Host $host;
@@ -269,7 +271,8 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Go WebSocket 프록시 (WSS 자동 지원용 프로토콜 업그레이드 헤더 필수)
+    # 3. Go WebSocket 프록시 (포트 8081)
+    # Cloudflare 프록시를 경유해 WSS(Secure WebSockets)로 자동 암호화 통신합니다.
     location /ws {
         proxy_pass http://127.0.0.1:8081;
         proxy_http_version 1.1;
@@ -288,16 +291,27 @@ server {
 ```bash
 # 설정 활성화 및 Nginx 재시작
 sudo ln -s /etc/nginx/sites-available/buzz48 /etc/nginx/sites-enabled/
-sudo rm /etc/nginx/sites-enabled/default
+sudo rm -s /etc/nginx/sites-enabled/default  # 기존 기본 디폴트 설정 삭제
 sudo nginx -t
 sudo systemctl restart nginx
 ```
 
-### 6.2 Certbot을 통한 SSL(HTTPS) 인증서 적용
-Nginx 도메인 연결이 완료되면 Let's Encrypt 무료 SSL 인증서를 발급받아 원클릭으로 주입합니다:
-```bash
-sudo apt install certbot python3-certbot-nginx -y
-sudo certbot --nginx -d buzz48.pl3.kr
-```
-인증서 발급 질문 단계에서 **Redirect HTTP requests to HTTPS**를 선택하면, 80포트 접속을 자동으로 443(HTTPS) 안전 접속으로 변경해 주는 보안 룰까지 Nginx에 자동 완성해 줍니다!
-이제 브라우저에서 `https://buzz48.pl3.kr` 에 접속하면 자물쇠 표시와 함께 실시간 채팅 및 방문 화력 카운팅 서비스가 완벽하게 배포 가동됩니다!
+---
+
+## 7. Cloudflare SSL/TLS 모드별 대칭 설정
+
+Nginx 설정 구동 후 Cloudflare 대시보드 ➡️ **SSL/TLS** ➡️ **Overview** 메뉴로 이동하여 원하는 암호화 방식을 결정합니다.
+
+### 7.1 옵션 A: Flexible SSL (최소 설정 배포)
+- **개념**: `유저 ⬅️(HTTPS)➡️ Cloudflare ⬅️(HTTP)➡️ Nginx (Port 80)`
+- **특징**: 가장 설정이 간단합니다. OCI 서버 측에는 그 어떠한 SSL 인증서 파일을 둘 필요가 없으며, Nginx의 80포트 설정만으로도 브라우저에는 자물쇠 마크(HTTPS)가 안전하게 표시됩니다.
+- **조치**: Cloudflare SSL/TLS 설정을 `Flexible`로 체크만 해두면 작업이 끝납니다.
+
+### 7.2 옵션 B: Full / Full (Strict) SSL (종단간 암호화 보안 강화)
+- **개념**: `유저 ⬅️(HTTPS)➡️ Cloudflare ⬅️(HTTPS)➡️ Nginx (Port 443)`
+- **특징**: Cloudflare와 OCI 서버 간의 구간 통신까지 완벽하게 암호화하고 싶을 때 선택합니다.
+- **조치**:
+  1. Cloudflare 대시보드 ➡️ SSL/TLS ➡️ **Origin Server**로 이동하여 **Create Certificate**를 클릭합니다. (기본 15년 기한 무료 Origin 인증서 발급 지원)
+  2. 개인키(`origin.key`)와 인증서(`origin.pem`) 파일 텍스트를 다운받아 OCI 서버의 `/etc/ssl/` 디렉토리에 저장합니다.
+  3. OCI 방화벽에서 `443` 포트를 연 뒤, Nginx 설정을 `listen 443 ssl`로 확장하고 인증서 경로를 추가 매핑해 줍니다.
+
