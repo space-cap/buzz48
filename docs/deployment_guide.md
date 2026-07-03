@@ -67,23 +67,19 @@ sudo kill -9 <PID>
 ```
 *만약 기존의 중요 서비스가 해당 포트를 합법적으로 계속 써야 하는 경우라면, 프로젝트 환경 설정(`.env` 및 `.service` 유닛 파일) 내 포트 번호를 `3002`, `8085` 등으로 변경하여 충돌을 피할 수 있습니다.*
 
-### 3.2 필요 도구 설치 (Git, Go, Node.js, Redis)
-SSH 접속 상태에서 아래 커맨드를 실행하여 컴파일 및 캐시 도구를 설치합니다:
+### 3.2 필요 도구 설치 (Git, Go, Node.js)
+SSH 접속 상태에서 아래 커맨드를 실행하여 컴파일 및 런타임 도구를 설치합니다:
 ```bash
 sudo apt update && sudo apt upgrade -y
 
-# 1. Redis 설치 및 활성화
-sudo apt install redis-server -y
-sudo systemctl enable redis-server
-sudo systemctl start redis-server
-
-# 2. Node.js & npm 설치 (Next.js 빌드 및 구동용)
+# 1. Node.js & npm 설치 (Next.js 빌드 및 구동용)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 
-# 3. Go 설치 (백엔드 컴파일용)
+# 2. Go 설치 (백엔드 컴파일용)
 sudo snap install go --classic
 ```
+*참고: Redis는 이미 서버 내에 Docker 컨테이너 형태로 6379 포트를 선점하여 성공적으로 구동 중이므로, 별도의 로컬 패키지 설치 단계는 생략하고 기존 Docker 컨테이너 인스턴스를 재사용합니다.*
 
 ---
 
