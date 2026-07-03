@@ -92,10 +92,10 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 		initialState: post?.state || 'LIVE'
 	});
 
-	// 최초 메시지 로드 시 즉시 최하단으로 이동 (스냅)
+	// 최초 메시지 로드 및 로딩 해제 시 즉시 최하단으로 이동 (스냅)
 	const prevLengthRef = useRef(0);
 	useEffect(() => {
-		if (messages.length === 0) return;
+		if (loading || messages.length === 0) return;
 
 		const scrollToBottom = (behavior: ScrollBehavior) => {
 			// rAF 2중 래핑 — React 렌더 → 브라우저 페인트 완료 후 스크롤 실행 보장
@@ -114,7 +114,7 @@ export default function PostDetailClient({ postID }: PostDetailClientProps) {
 			scrollToBottom('smooth');
 		}
 		prevLengthRef.current = messages.length;
-	}, [messages]);
+	}, [messages, loading]);
 
 	// 메시지 전송 핸들러
 	const handleSendMessageSubmit = (e: React.FormEvent) => {
