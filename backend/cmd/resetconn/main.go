@@ -11,8 +11,12 @@ import (
 )
 
 func main() {
-	// .env 로드 (프로젝트 루트 절대 경로)
+	// .env 로드 (절대 경로 및 상대 경로 대체 탐색)
+	_ = godotenv.Load(`h:\lee\buzz48\backend\.env`)
 	_ = godotenv.Load(`h:\lee\buzz48\.env`)
+	_ = godotenv.Load("backend/.env")
+	_ = godotenv.Load("../backend/.env")
+	_ = godotenv.Load(".env")
 
 	host := os.Getenv("REDIS_HOST")
 	port := os.Getenv("REDIS_PORT")

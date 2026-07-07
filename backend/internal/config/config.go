@@ -30,10 +30,16 @@ type Config struct {
 // Load는 .env 파일을 읽고 Config를 반환합니다.
 // .env 파일이 없으면 OS 환경변수만 사용합니다.
 func Load() (*Config, error) {
-	// 루트의 .env 파일 로드 (없어도 에러 아님)
+	// .env 파일 로드 (루트 및 backend 폴더 이동 대응)
+	_ = godotenv.Load(`h:\lee\buzz48\backend\.env`)
+	_ = godotenv.Load(`h:\lee\buzz48\.env`)
+	_ = godotenv.Load("../../../backend/.env")
 	_ = godotenv.Load("../../../.env")
+	_ = godotenv.Load("../../backend/.env")
 	_ = godotenv.Load("../../.env")
+	_ = godotenv.Load("../backend/.env")
 	_ = godotenv.Load("../.env")
+	_ = godotenv.Load("backend/.env")
 	_ = godotenv.Load(".env")
 
 	cfg := &Config{
