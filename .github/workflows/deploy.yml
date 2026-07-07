@@ -58,8 +58,8 @@ jobs:
           cp backend/ws-server deploy/backend/
           cp backend/worker-server deploy/backend/
           
-          # 프론트엔드 Standalone 빌드 결과물 복사
-          cp -r frontend/.next/standalone/* deploy/frontend/
+          # 프론트엔드 Standalone 빌드 결과물 복사 (점파일 포함)
+          cp -r frontend/.next/standalone/. deploy/frontend/
           cp -r frontend/public deploy/frontend/public
           mkdir -p deploy/frontend/.next
           cp -r frontend/.next/static deploy/frontend/.next/static
@@ -121,8 +121,8 @@ jobs:
             rm -rf $FRONTEND_DIR/*
             mkdir -p $FRONTEND_DIR
             
-            # 새 파일 복사
-            cp -r $TMP_DIR/extracted/frontend/* $FRONTEND_DIR/
+            # 새 파일 복사 (점파일 포함)
+            cp -r $TMP_DIR/extracted/frontend/. $FRONTEND_DIR/
             
             sudo systemctl start buzz-frontend
             
