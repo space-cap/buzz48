@@ -1,0 +1,136 @@
+name: Buzz48 CD - SSH Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  GOARCH: amd64 # 오라클 클라우드 VM 아키텍처 (일반 AMD는 amd64, ARM Ampere는 arm64로 수정하세요)
+  NODE_VERSION: '20'
+
+jobs:
+  deploy:
+    name: Build and Deploy to OCI VM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ================= 1. Go Backend Build =================
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'backend/go.mod'
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build Go Binaries
+        run: |
+          cd backend
+          GOOS=linux GOARCH=${{ env.GOARCH }} go build -ldflags="-w -s" -o api-server api/main.go
+          GOOS=linux GOARCH=${{ env.GOARCH }} go build -ldflags="-w -s" -o ws-server ws/main.go
+          GOOS=linux GOARCH=${{ env.GOARCH }} go build -ldflags="-w -s" -o worker-server cmd/worker/main.go
+
+      # ================= 2. Next.js Frontend Build =================
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build Next.js
+        env:
+          NEXT_PUBLIC_API_URL: https://buzz48.pl3.kr
+          NEXT_PUBLIC_WS_URL: wss://buzz48.pl3.kr/ws
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      # ================= 3. Package and Archive =================
+      - name: Prepare Deploy Directories
+        run: |
+          mkdir -p deploy/backend deploy/frontend
+          
+          # 백엔드 바이너리 복사
+          cp backend/api-server deploy/backend/
+          cp backend/ws-server deploy/backend/
+          cp backend/worker-server deploy/backend/
+          
+          # 프론트엔드 Standalone 빌드 결과물 복사
+          cp -r frontend/.next/standalone/* deploy/frontend/
+          cp -r frontend/public deploy/frontend/public
+          mkdir -p deploy/frontend/.next
+          cp -r frontend/.next/static deploy/frontend/.next/static
+          
+          # 전송용 단일 압축 파일 생성
+          tar -czf deploy.tar.gz -C deploy .
+
+      # ================= 4. Transfer to Server =================
+      - name: Send Package to VM via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "deploy.tar.gz"
+          target: "/var/www/buzz48/tmp"
+
+      # ================= 5. Deploy on Server =================
+      - name: Deploy and Restart Services via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            
+            # 작업 디렉토리 설정
+            TMP_DIR="/var/www/buzz48/tmp"
+            BACKEND_DIR="/var/www/buzz48/backend"
+            FRONTEND_DIR="/var/www/buzz48/frontend"
+            
+            echo "--- 배포 시작 ---"
+            
+            # 압축 해제
+            mkdir -p $TMP_DIR/extracted
+            tar -xzf $TMP_DIR/deploy.tar.gz -C $TMP_DIR/extracted
+            
+            # 1. 백엔드 서비스 교체
+            echo "1. 백엔드 바이너리 교체 및 서비스 재기동..."
+            sudo systemctl stop buzz-api buzz-ws buzz-worker || true
+            
+            mkdir -p $BACKEND_DIR
+            cp -f $TMP_DIR/extracted/backend/api-server $BACKEND_DIR/
+            cp -f $TMP_DIR/extracted/backend/ws-server $BACKEND_DIR/
+            cp -f $TMP_DIR/extracted/backend/worker-server $BACKEND_DIR/
+            
+            chmod +x $BACKEND_DIR/*-server
+            
+            sudo systemctl start buzz-api buzz-ws buzz-worker
+            
+            # 2. 프론트엔드 서비스 교체
+            echo "2. 프론트엔드 standalone 파일 교체 및 서비스 재기동..."
+            sudo systemctl stop buzz-frontend || true
+            
+            # 기존 프론트엔드 파일 제거 (이전 빌드의 잔재 삭제)
+            rm -rf $FRONTEND_DIR/*
+            mkdir -p $FRONTEND_DIR
+            
+            # 새 파일 복사
+            cp -r $TMP_DIR/extracted/frontend/* $FRONTEND_DIR/
+            
+            sudo systemctl start buzz-frontend
+            
+            # 3. 임시 파일 삭제 및 캐시 정리
+            echo "3. 임시 파일 정리..."
+            rm -rf $TMP_DIR/deploy.tar.gz
+            rm -rf $TMP_DIR/extracted
+            
+            # 4. 전체 서비스 상태 진단 출력
+            echo "--- 배포 완료 및 서비스 상태 확인 ---"
+            sudo systemctl status buzz-api buzz-ws buzz-worker buzz-frontend --no-pager
