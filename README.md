@@ -65,17 +65,17 @@ stateDiagram-v2
 
 ```mermaid
 graph TD
-    User([유저 브라우저]) -->|HTTPS / WSS| CF[Cloudflare Edge]
-    CF -->|암호화 터널 통신 (Outbound)| CFT[cloudflared 데몬]
+    User(["유저 브라우저"]) -->|"HTTPS / WSS"| CF[Cloudflare Edge]
+    CF -->|"암호화 터널 통신 (Outbound)"| CFT[cloudflared 데몬]
     
-    subgraph OCI Compute Instance (Ubuntu 22.04)
-        CFT -->|http://localhost:3001| NextJS[Next.js 프론트엔드]
-        CFT -->|http://localhost:8082| GoAPI[Go REST API 서버]
-        CFT -->|http://localhost:8081| GoWS[Go WebSocket 서버]
+    subgraph "OCI Compute Instance (Ubuntu 22.04)"
+        CFT -->|"http://localhost:3001"| NextJS[Next.js 프론트엔드]
+        CFT -->|"http://localhost:8082"| GoAPI[Go REST API 서버]
+        CFT -->|"http://localhost:8081"| GoWS[Go WebSocket 서버]
         
-        GoAPI -.->|Data Sync| Redis[(Redis Cache)]
-        GoWS -.->|Pub/Sub| Redis
-        GoAPI -->|Persist| DB[(PostgreSQL - Neon)]
+        GoAPI -.->|"Data Sync"| Redis[("Redis Cache")]
+        GoWS -.->|"Pub/Sub"| Redis
+        GoAPI -->|Persist| DB[("PostgreSQL - Neon")]
     end
 ```
 
