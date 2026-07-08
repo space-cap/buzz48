@@ -55,8 +55,16 @@ func main() {
 
 	// HTTP 라우터
 	mux := http.NewServeMux()
+	
+	// 헬스체크 매핑 (로컬 경로 및 운영 /ws 경로 동시 지원)
 	mux.HandleFunc("/v1/health", healthHandler)
+	mux.HandleFunc("/ws/v1/health", healthHandler)
+	mux.HandleFunc("/ws/health", healthHandler)
+
+	// WebSocket 연결 매핑 (로컬 경로 및 운영 /ws 경로 동시 지원)
 	mux.HandleFunc("/v1/ws/posts/", wsHandler)
+	mux.HandleFunc("/ws/v1/ws/posts/", wsHandler)
+	mux.HandleFunc("/ws/posts/", wsHandler)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.WSPort,
