@@ -25,6 +25,8 @@ type Config struct {
 	DBSSLMode  string
 
 	JWTSecret string
+
+	CORSAllowOrigins string
 }
 
 // Load는 .env 파일을 읽고 Config를 반환합니다.
@@ -59,6 +61,8 @@ func Load() (*Config, error) {
 		DBSSLMode:  getEnv("DB_SSL_MODE", "disable"),
 
 		JWTSecret: getEnv("JWT_SECRET", ""),
+
+		CORSAllowOrigins: getEnv("CORS_ALLOW_ORIGINS", "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001"),
 	}
 
 	if cfg.JWTSecret == "" && cfg.AppEnv == "production" {

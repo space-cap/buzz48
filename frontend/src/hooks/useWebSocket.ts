@@ -57,7 +57,8 @@ export function useWebSocket({ postID, sessionID, initialState }: UseWebSocketPr
 			return;
 		}
 
-		const wsUrl = `ws://localhost:8083/v1/ws/posts/${postID}?token=${sessionID}`;
+		const wsBase = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8083/v1/ws";
+		const wsUrl = `${wsBase}/posts/${postID}?token=${sessionID}`;
 		const socket = new WebSocket(wsUrl);
 		ws.current = socket;
 		isClosedIntentionallyRef.current = false; // 신규 연결 수립 시 플래그 리셋

@@ -1,4 +1,6 @@
-const API_BASE = "http://localhost:8082/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
+	? `${process.env.NEXT_PUBLIC_API_URL}/v1`
+	: "http://localhost:8082/v1";
 
 export interface SessionInfo {
 	session_id: string;

@@ -77,7 +77,7 @@ func main() {
 		Format: "${time} | ${status} | ${latency} | ${method} ${path}\n",
 	}))
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000, http://localhost:3001, http://127.0.0.1:3000, http://127.0.0.1:3001",
+		AllowOrigins:     cfg.CORSAllowOrigins,
 		AllowHeaders:     "Origin, Content-Type, Authorization",
 		AllowCredentials: true, // 쿠키 허용
 	}))
