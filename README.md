@@ -124,6 +124,38 @@ buzz48/
 
 <br>
 
+## 🚢 배포 아키텍처 및 자동화 (Deployment & CI/CD)
+
+본 프로젝트는 수동 배포로 인한 휴먼 에러를 방지하고 안정적인 서비스를 제공하기 위해 **GitHub Actions를 활용한 지속적 배포(CD) 파이프라인**을 구축했습니다.
+
+### 1. 인프라 운영 환경
+* **Cloud VM:** Oracle Cloud Infrastructure (OCI) Compute Instance
+* **OS:** Ubuntu 22.04 LTS (amd64 아키텍처)
+* **네트워크 보안 & DNS:** Cloudflare Proxy (주황색 구름) 및 **Origin Rules** 기반 포트 포워딩 분기
+  - `https://buzz48.pl3.kr` ➔ 오리진 포트 `3001` (Next.js)
+  - `https://buzz48.pl3.kr/v1` ➔ 오리진 포트 `8082` (Go REST API)
+  - `https://buzz48.pl3.kr/ws` ➔ 오리진 포트 `8081` (Go WebSocket)
+* **서버 방화벽:** OCI Security List를 통해 외부 통신에 필요한 포트만 선별 허용하여 인바운드 보안 강화.
+
+### 2. CI/CD 배포 파이프라인 흐름
+`main` 브랜치에 코드가 push되면 GitHub Actions 러너가 작동하여 아래 배포 프로세스를 자동으로 안전하게 수행합니다.
+
+```mermaid
+flowchart TD
+    Push([main 브랜치 Push]) --> BuildGo[Go Backend 빌드]
+    Push --> BuildNext[Next.js Standalone 빌드]
+    BuildGo --> Package[단일 배포 아카이브 패키징 deploy.tar.gz]
+    BuildNext --> Package
+    Package --> Transfer[appleboy/scp-action: OCI VM 서버 전송]
+    Transfer --> RunSSH[appleboy/ssh-action: SSH 원격 명령 실행]
+    RunSSH --> Stop[기존 서비스 중지 systemctl stop]
+    Stop --> DeployFiles[새 바이너리 및 정적 빌드 파일 교체]
+    DeployFiles --> Start[신규 서비스 기동 systemctl start]
+    Start --> Diagnosis[서비스 헬스체크 및 배포 완료 진단]
+```
+
+<br>
+
 ## 💻 로컬 구동 방법 (How to Run Locally)
 
 ### 1. 환경 설정 (.env)
