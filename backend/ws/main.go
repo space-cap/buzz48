@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
 	"time"
 
@@ -101,14 +102,12 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
-	// URL 경로 예시: /v1/ws/posts/{post_id}
-	// /v1/ws/posts/ 접두사 이후의 문자열을 post_id로 추출
-	const prefix = "/v1/ws/posts/"
-	if len(r.URL.Path) <= len(prefix) {
+	// URL 경로 끝에서 post_id를 동적으로 추출 (로컬/운영 간 경로 접두사 불일치 완벽 호환)
+	postID := path.Base(r.URL.Path)
+	if postID == "" || postID == "." || postID == "/" {
 		http.Error(w, "Bad Request: Missing post_id", http.StatusBadRequest)
 		return
 	}
-	postID := r.URL.Path[len(prefix):]
 	if postID == "" {
 		http.Error(w, "Bad Request: Missing post_id", http.StatusBadRequest)
 		return
