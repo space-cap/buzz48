@@ -430,12 +430,13 @@ func (d *Deps) GetMessages(c *fiber.Ctx) error {
 		cursorTime = time.Now().UTC()
 	}
 
-	// messages_archive 테이블에서 조회 (READ 상태 데이터는 PostgreSQL에 저장)
+	// messages_archive 테이블에서 조회 (READ 상태 데이터는 PostgreSQL에 저장, sessions 테이블 JOIN)
 	rows, err := d.DB.Query(ctx,
-		`SELECT id, sender_session_id, sender_nickname, content, reply_to_id, is_deleted, created_at
-		 FROM messages_archive
-		 WHERE post_id=$1 AND created_at < $2
-		 ORDER BY created_at DESC
+		`SELECT m.id, m.sender_session_id, s.nickname, m.content, m.reply_to_id, m.is_deleted, m.created_at
+		 FROM messages_archive m
+		 JOIN sessions s ON m.sender_session_id = s.id
+		 WHERE m.post_id=$1 AND m.created_at < $2
+		 ORDER BY m.created_at DESC
 		 LIMIT $3`,
 		postID, cursorTime, limit+1,
 	)
